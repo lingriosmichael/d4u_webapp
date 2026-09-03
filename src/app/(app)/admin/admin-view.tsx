@@ -4,23 +4,17 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageContainer, PageHeader } from "@/components/app-shell";
 import { useCurrentUser } from "@/lib/role-context";
-import {
-  users,
-  projects,
-  costCenters,
-  costCenterGroups,
-  budgetLines,
-  partners,
-  auditLog,
-  settings as settingsData,
-  getProject,
-  getCostCenter,
-  getUser,
-  groupsForProject,
-  fmtDateTime,
-  fmtEUR,
-  type Role,
-} from "@/lib/mock-data";
+import { fmtDateTime, fmtEUR, type Role } from "@/lib/mock-data";
+import type {
+  AdminUser,
+  AdminProject,
+  AdminCostCenter,
+  AdminGroup,
+  AdminBudgetLine,
+  AdminPartner,
+  AdminSetting,
+  AdminAuditLogEntry,
+} from "@/lib/supabase/queries/admin";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,13 +33,37 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Plus, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-export function AdminPage() {
+// Converted from lib/mock-data.ts to real Supabase reads, fetched
+// server-side by page.tsx and passed down as props (same pattern as
+// Übersicht/Expense Detail). Write actions ("anlegen"/"Bearbeiten" below)
+// are NOT yet wired to d4u_backend's admin CRUD routes — still toast
+// stubs, same as before this conversion. Read src/lib/api.ts's
+// admin.*.upsert endpoints and d4u_backend's src/lib/admin-resources.ts
+// for what's already built and waiting to be called from here.
+export function AdminPage({
+  users,
+  projects,
+  costCenters,
+  groups,
+  budgetLines,
+  partners,
+  settings,
+  auditLog,
+}: {
+  users: AdminUser[];
+  projects: AdminProject[];
+  costCenters: AdminCostCenter[];
+  groups: AdminGroup[];
+  budgetLines: AdminBudgetLine[];
+  partners: AdminPartner[];
+  settings: AdminSetting[];
+  auditLog: AdminAuditLogEntry[];
+}) {
   const { user } = useCurrentUser();
   const router = useRouter();
 
@@ -102,28 +120,28 @@ export function AdminPage() {
         </TabsList>
 
         <TabsContent value="users" className="mt-6">
-          <UsersTab />
+          <UsersTab users={users} />
         </TabsContent>
         <TabsContent value="projects" className="mt-6">
-          <ProjectsTab />
+          <ProjectsTab projects={projects} />
         </TabsContent>
         <TabsContent value="cc" className="mt-6">
-          <CostCentersTab />
+          <CostCentersTab costCenters={costCenters} />
         </TabsContent>
         <TabsContent value="groups" className="mt-6">
-          <GroupsTab />
+          <GroupsTab projects={projects} groups={groups} costCenters={costCenters} />
         </TabsContent>
         <TabsContent value="budget" className="mt-6">
-          <BudgetLinesTab />
+          <BudgetLinesTab budgetLines={budgetLines} />
         </TabsContent>
         <TabsContent value="partners" className="mt-6">
-          <PartnersTab />
+          <PartnersTab partners={partners} />
         </TabsContent>
         <TabsContent value="settings" className="mt-6">
-          <SettingsTab />
+          <SettingsTab settings={settings} />
         </TabsContent>
         <TabsContent value="audit" className="mt-6">
-          <AuditTab />
+          <AuditTab auditLog={auditLog} />
         </TabsContent>
       </Tabs>
     </PageContainer>
@@ -179,7 +197,7 @@ const roleLabels: Record<Role, string> = {
   admin: "Administration",
 };
 
-function UsersTab() {
+function UsersTab({ users }: { users: AdminUser[] }) {
   return (
     <AdminCard
       title="Nutzer"
@@ -208,7 +226,11 @@ function UsersTab() {
               </span>
             </td>
             <td className="px-6 py-3 text-right">
-              <Button size="sm" variant="ghost">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => toast.info("Formular öffnen (Demo)")}
+              >
                 Bearbeiten
               </Button>
             </td>
@@ -221,7 +243,7 @@ function UsersTab() {
 
 // ---- Projects --------------------------------------------------------------
 
-function ProjectsTab() {
+function ProjectsTab({ projects }: { projects: AdminProject[] }) {
   return (
     <AdminCard
       title="Projekte"
@@ -237,12 +259,16 @@ function ProjectsTab() {
             <td className="px-6 py-3 font-mono text-xs">{p.code}</td>
             <td className="px-6 py-3">{p.name}</td>
             <td className="px-6 py-3 text-muted-foreground">{p.fundingProgram}</td>
-            <td className="px-6 py-3 text-muted-foreground">{getUser(p.leadUserId)?.name}</td>
+            <td className="px-6 py-3 text-muted-foreground">{p.leadUserName ?? "—"}</td>
             <td className="px-6 py-3 text-xs text-muted-foreground">
               {p.startDate} – {p.endDate}
             </td>
             <td className="px-6 py-3 text-right">
-              <Button size="sm" variant="ghost">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => toast.info("Formular öffnen (Demo)")}
+              >
                 Bearbeiten
               </Button>
             </td>
@@ -255,7 +281,7 @@ function ProjectsTab() {
 
 // ---- Cost centers ----------------------------------------------------------
 
-function CostCentersTab() {
+function CostCentersTab({ costCenters }: { costCenters: AdminCostCenter[] }) {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground max-w-xl">
@@ -265,7 +291,7 @@ function CostCentersTab() {
       <AdminCard
         title="Kostenstellen"
         action={
-          <Button size="sm">
+          <Button size="sm" onClick={() => toast.info("Kostenstelle anlegen (Demo)")}>
             <Plus className="size-3.5" /> Kostenstelle anlegen
           </Button>
         }
@@ -283,7 +309,11 @@ function CostCentersTab() {
                 </span>
               </td>
               <td className="px-6 py-3 text-right">
-                <Button size="sm" variant="ghost">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => toast.info("Formular öffnen (Demo)")}
+                >
                   Bearbeiten
                 </Button>
               </td>
@@ -297,12 +327,20 @@ function CostCentersTab() {
 
 // ---- Cost-center groups (per project) --------------------------------------
 
-function GroupsTab() {
+function GroupsTab({
+  projects,
+  groups,
+  costCenters,
+}: {
+  projects: AdminProject[];
+  groups: AdminGroup[];
+  costCenters: AdminCostCenter[];
+}) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
-  const project = getProject(projectId);
-  const groups = groupsForProject(projectId);
+  const project = projects.find((p) => p.id === projectId);
+  const projectGroups = groups.filter((g) => g.projectId === projectId);
 
-  const assignedIds = new Set(groups.flatMap((g) => g.costCenterIds));
+  const assignedIds = new Set(projectGroups.flatMap((g) => g.costCenterIds));
   const unassigned = costCenters.filter((c) => !assignedIds.has(c.id));
 
   return (
@@ -325,23 +363,28 @@ function GroupsTab() {
         </div>
         {project && (
           <div className="text-xs text-muted-foreground">
-            {groups.length} Gruppen · {assignedIds.size} zugeordnete Kostenstellen
+            {projectGroups.length} Gruppen · {assignedIds.size} zugeordnete Kostenstellen
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {groups.map((g) => (
+        {projectGroups.map((g) => (
           <div key={g.id} className="bg-card ring-1 ring-black/5 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-heading font-semibold text-sm">{g.name}</h3>
-              <Button size="sm" variant="ghost" className="h-7 px-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2"
+                onClick={() => toast.info("Umbenennen (Demo)")}
+              >
                 Umbenennen
               </Button>
             </div>
             <div className="space-y-1.5">
               {g.costCenterIds.map((id) => {
-                const c = getCostCenter(id);
+                const c = costCenters.find((cc) => cc.id === id);
                 return c ? (
                   <div
                     key={id}
@@ -411,8 +454,8 @@ function AssignPicker({
   unassigned,
   onPick,
 }: {
-  unassigned: typeof costCenters;
-  onPick: (c: (typeof costCenters)[number]) => void;
+  unassigned: AdminCostCenter[];
+  onPick: (c: AdminCostCenter) => void;
 }) {
   const [open, setOpen] = useState(false);
   if (unassigned.length === 0) return null;
@@ -451,34 +494,34 @@ function AssignPicker({
 
 // ---- Budget lines ----------------------------------------------------------
 
-function BudgetLinesTab() {
+function BudgetLinesTab({ budgetLines }: { budgetLines: AdminBudgetLine[] }) {
   return (
     <AdminCard
       title="Budget-Zeilen"
       action={
-        <Button size="sm">
+        <Button size="sm" onClick={() => toast.info("Budget-Zeile anlegen (Demo)")}>
           <Plus className="size-3.5" /> Budget-Zeile anlegen
         </Button>
       }
     >
       <Table headers={["Projekt", "Gruppe", "Zugewiesen", "Warnschwelle", ""]}>
-        {budgetLines.map((b) => {
-          const p = getProject(b.projectId);
-          const g = costCenterGroups.find((x) => x.id === b.groupId);
-          return (
-            <tr key={b.id} className="border-t border-black/5">
-              <td className="px-6 py-3">{p?.name}</td>
-              <td className="px-6 py-3">{g?.name}</td>
-              <td className="px-6 py-3 font-mono">{fmtEUR(b.allocated)}</td>
-              <td className="px-6 py-3">{b.warningThresholdPct} %</td>
-              <td className="px-6 py-3 text-right">
-                <Button size="sm" variant="ghost">
-                  Bearbeiten
-                </Button>
-              </td>
-            </tr>
-          );
-        })}
+        {budgetLines.map((b) => (
+          <tr key={b.id} className="border-t border-black/5">
+            <td className="px-6 py-3">{b.projectName}</td>
+            <td className="px-6 py-3">{b.groupName}</td>
+            <td className="px-6 py-3 font-mono">{fmtEUR(b.allocated)}</td>
+            <td className="px-6 py-3">{b.warningThresholdPct} %</td>
+            <td className="px-6 py-3 text-right">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => toast.info("Formular öffnen (Demo)")}
+              >
+                Bearbeiten
+              </Button>
+            </td>
+          </tr>
+        ))}
       </Table>
     </AdminCard>
   );
@@ -486,12 +529,12 @@ function BudgetLinesTab() {
 
 // ---- Partners --------------------------------------------------------------
 
-function PartnersTab() {
+function PartnersTab({ partners }: { partners: AdminPartner[] }) {
   return (
     <AdminCard
       title="Partner"
       action={
-        <Button size="sm">
+        <Button size="sm" onClick={() => toast.info("Partner anlegen (Demo)")}>
           <Plus className="size-3.5" /> Partner anlegen
         </Button>
       }
@@ -507,7 +550,11 @@ function PartnersTab() {
               </span>
             </td>
             <td className="px-6 py-3 text-right">
-              <Button size="sm" variant="ghost">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => toast.info("Formular öffnen (Demo)")}
+              >
                 Bearbeiten
               </Button>
             </td>
@@ -520,16 +567,27 @@ function PartnersTab() {
 
 // ---- Settings --------------------------------------------------------------
 
-function SettingsTab() {
+// Display labels aren't stored in the `settings` table (just key/value) —
+// kept here as presentation only, same as the original mock fixture had
+// them, not as a stand-in for real data.
+const SETTING_LABELS: Record<string, string> = {
+  ceo_approval_threshold_eur: "Freigabegrenze für Eskalation an die Geschäftsführung (EUR)",
+  warning_threshold_pct: "Standard-Warnschwelle Budgetauslastung (%)",
+  advance_requires_ceo_approval: "Vorschuss benötigt CEO-Freigabe",
+  notify_slack_channel: "Benachrichtigungs-Kanal (RocketChat)",
+  vat_default_rate: "Standard-USt-Satz (%)",
+};
+
+function SettingsTab({ settings }: { settings: AdminSetting[] }) {
   return (
     <div className="space-y-3">
-      {settingsData.map((s) => (
+      {settings.map((s) => (
         <div
           key={s.key}
           className="bg-card ring-1 ring-black/5 rounded-xl p-5 flex items-center justify-between gap-6"
         >
           <div>
-            <div className="text-sm font-medium">{s.label}</div>
+            <div className="text-sm font-medium">{SETTING_LABELS[s.key] ?? s.key}</div>
             <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{s.key}</div>
           </div>
           <div>
@@ -551,12 +609,12 @@ function SettingsTab() {
 
 // ---- Audit log -------------------------------------------------------------
 
-function AuditTab() {
+function AuditTab({ auditLog }: { auditLog: AdminAuditLogEntry[] }) {
   const [filter, setFilter] = useState("");
   const filtered = filter
     ? auditLog.filter(
         (a) =>
-          a.table.includes(filter.toLowerCase()) ||
+          a.table.toLowerCase().includes(filter.toLowerCase()) ||
           a.summary.toLowerCase().includes(filter.toLowerCase()),
       )
     : auditLog;
@@ -578,7 +636,7 @@ function AuditTab() {
               <td className="px-6 py-3 text-xs text-muted-foreground font-mono whitespace-nowrap">
                 {fmtDateTime(a.at)}
               </td>
-              <td className="px-6 py-3">{getUser(a.actorUserId)?.name}</td>
+              <td className="px-6 py-3">{a.actorName ?? "—"}</td>
               <td className="px-6 py-3 text-xs font-mono">{a.table}</td>
               <td className="px-6 py-3 text-xs font-mono text-muted-foreground">{a.recordId}</td>
               <td className="px-6 py-3">
