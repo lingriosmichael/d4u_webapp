@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCurrentUser } from "@/lib/role-context";
-import { users, needsActionFor, type Role } from "@/lib/mock-data";
+import { needsActionFor, type Role } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,9 +45,17 @@ const roleLabels: Record<Role, string> = {
 };
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, setUserId } = useCurrentUser();
+  const { user } = useCurrentUser();
   const pathname = usePathname();
+  const router = useRouter();
   const pending = needsActionFor(user);
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   const isActive = (item: NavItem) =>
     item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(item.to + "/");
@@ -136,21 +145,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-56">
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                Rolle wechseln (Demo)
+                {user.email}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {users.map((u) => (
-                <DropdownMenuItem
-                  key={u.id}
-                  onSelect={() => setUserId(u.id)}
-                  className={cn(u.id === user.id && "bg-accent")}
-                >
-                  <div className="flex flex-col">
-                    <span className="text-sm">{u.name}</span>
-                    <span className="text-[10px] text-muted-foreground">{roleLabels[u.role]}</span>
-                  </div>
-                </DropdownMenuItem>
-              ))}
+              <DropdownMenuItem onSelect={handleSignOut}>Abmelden</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

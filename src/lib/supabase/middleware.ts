@@ -2,9 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Refreshes the Supabase auth session cookie on every request so it doesn't
-// expire silently in the middle of a visit. Route protection (redirecting
-// unauthenticated users away from screens that need a session) lands with
-// the login page in Phase 2 — this only keeps the session alive for now.
+// expire silently in the middle of a visit, and redirects unauthenticated
+// visitors to /login. app/(app)/layout.tsx has its own redirect too — kept
+// as a second, independent guard rather than relying on middleware alone.
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -29,7 +29,15 @@ export async function updateSession(request: NextRequest) {
 
   // Do not add logic between createServerClient() and getUser() below —
   // Supabase needs this call present to refresh expiring tokens.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user && !request.nextUrl.pathname.startsWith("/login")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
 
   return supabaseResponse;
 }
