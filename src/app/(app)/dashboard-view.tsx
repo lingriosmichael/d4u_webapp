@@ -1,27 +1,38 @@
-"use client";
-
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PageContainer, PageHeader, StatusPill } from "@/components/app-shell";
-import { useCurrentUser } from "@/lib/role-context";
+import { fmtEUR, fmtDate, statusLabel, statusTone } from "@/lib/mock-data";
+import { getCurrentUserProfile } from "@/lib/supabase/queries/current-user";
 import {
+  getDashboardProjects,
+  getDashboardBudgetStatus,
+  getDashboardExpenses,
   needsActionFor,
-  getProject,
-  getUser,
-  getPartner,
-  fmtEUR,
-  fmtDate,
-  statusLabel,
-  statusTone,
-  expenses,
-  budgetStatusForProject,
-  projects,
-} from "@/lib/mock-data";
+} from "@/lib/supabase/queries/dashboard";
 import { Card } from "@/components/ui/card";
 import { ArrowUpRight, CheckCircle2 } from "lucide-react";
 
-export function DashboardView() {
-  const { user } = useCurrentUser();
-  const pending = needsActionFor(user);
+// Server Component: first screen wired to real Supabase data (Phase 3 of the
+// Supabase connection work) instead of lib/mock-data.ts. Every other route
+// still reads fixtures until its own turn — see this repo's recent commit
+// history rather than assuming the rest of the app is converted too.
+export async function DashboardView() {
+  const user = await getCurrentUserProfile();
+  // app/(app)/layout.tsx already redirects if there's no session; this is
+  // just satisfying TypeScript for the (unreachable in practice) case where
+  // the session expires between that check and this one.
+  if (!user) redirect("/login");
+
+  const [projects, budgetStatuses, expenses] = await Promise.all([
+    getDashboardProjects(),
+    getDashboardBudgetStatus(),
+    getDashboardExpenses(),
+  ]);
+
+  const budgetStatusByProject = new Map(budgetStatuses.map((b) => [b.projectId, b]));
+  const projectById = new Map(projects.map((p) => [p.id, p]));
+
+  const pending = needsActionFor(expenses, user.id, user.role);
   const visibleProjects =
     user.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects;
 
@@ -50,9 +61,7 @@ export function DashboardView() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {pending.map((e) => {
-            const project = getProject(e.projectId);
-            const submitter = getUser(e.submittedByUserId);
-            const partner = getPartner(e.partnerId);
+            const project = projectById.get(e.projectId);
             return (
               <Link
                 key={e.id}
@@ -70,15 +79,15 @@ export function DashboardView() {
                   <p className="text-xs text-muted-foreground">
                     {project?.name} · {fmtEUR(e.amount)}
                   </p>
-                  {partner && (
+                  {e.partnerName && (
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Partner: {partner.name}
+                      Partner: {e.partnerName}
                     </p>
                   )}
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 border-t border-black/5">
                   <span>
-                    {submitter?.name} · {fmtDate(e.createdAt)}
+                    {e.submittedByName ?? "—"} · {fmtDate(e.createdAt)}
                   </span>
                   <ArrowUpRight className="size-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
                 </div>
@@ -101,7 +110,11 @@ export function DashboardView() {
         </div>
         <div className="space-y-3">
           {visibleProjects.map((p) => {
-            const { soll, ist, obligo } = budgetStatusForProject(p.id);
+            const { soll, ist, obligo } = budgetStatusByProject.get(p.id) ?? {
+              soll: 0,
+              ist: 0,
+              obligo: 0,
+            };
             const istPct = soll > 0 ? (ist / soll) * 100 : 0;
             const obPct = soll > 0 ? (obligo / soll) * 100 : 0;
             return (
@@ -172,15 +185,15 @@ export function DashboardView() {
             </thead>
             <tbody>
               {expenses.map((e) => {
-                const project = getProject(e.projectId);
+                const project = projectById.get(e.projectId);
                 return (
+                  // No whole-row click here (that needed a client-side
+                  // onClick) — this is now a Server Component, so the ID
+                  // link is the click target, same as every other list in
+                  // the app.
                   <tr
                     key={e.id}
-                    onClick={(ev) => {
-                      // let Link handle nav via id column
-                      ev.currentTarget.querySelector<HTMLAnchorElement>("a")?.click();
-                    }}
-                    className="border-t border-black/5 hover:bg-secondary/40 cursor-pointer transition-colors"
+                    className="border-t border-black/5 hover:bg-secondary/40 transition-colors"
                   >
                     <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
                       <Link href={`/expenses/${e.id}`}>{e.id}</Link>
