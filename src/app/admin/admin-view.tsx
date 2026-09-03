@@ -1,5 +1,7 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useState } from "react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageContainer, PageHeader } from "@/components/app-shell";
 import { useCurrentUser } from "@/lib/role-context";
 import {
@@ -43,15 +45,14 @@ import { Plus, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/admin")({
-  head: () => ({
-    meta: [{ title: "Administration — D4U Finance" }, { name: "robots", content: "noindex" }],
-  }),
-  component: AdminPage,
-});
-
-function AdminPage() {
+export function AdminPage() {
   const { user } = useCurrentUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user.role !== "admin") router.replace("/");
+  }, [user.role, router]);
+
   if (user.role !== "admin") {
     return (
       <PageContainer>
@@ -60,7 +61,6 @@ function AdminPage() {
           title="Sie haben keinen Zugriff auf die Administration"
           description="Diese Ansicht ist ausschließlich für Administrator:innen. Wenden Sie sich bitte an Ihre Administration, falls Sie hier Zugriff benötigen."
         />
-        <Navigate to="/" replace />
       </PageContainer>
     );
   }
@@ -75,24 +75,56 @@ function AdminPage() {
 
       <Tabs defaultValue="users" className="w-full">
         <TabsList className="grid grid-cols-4 lg:grid-cols-8 h-auto p-1 bg-secondary/60">
-          <TabsTrigger value="users" className="text-xs">Nutzer</TabsTrigger>
-          <TabsTrigger value="projects" className="text-xs">Projekte</TabsTrigger>
-          <TabsTrigger value="cc" className="text-xs">Kostenstellen</TabsTrigger>
-          <TabsTrigger value="groups" className="text-xs">Gruppen</TabsTrigger>
-          <TabsTrigger value="budget" className="text-xs">Budgets</TabsTrigger>
-          <TabsTrigger value="partners" className="text-xs">Partner</TabsTrigger>
-          <TabsTrigger value="settings" className="text-xs">Einstellungen</TabsTrigger>
-          <TabsTrigger value="audit" className="text-xs">Protokoll</TabsTrigger>
+          <TabsTrigger value="users" className="text-xs">
+            Nutzer
+          </TabsTrigger>
+          <TabsTrigger value="projects" className="text-xs">
+            Projekte
+          </TabsTrigger>
+          <TabsTrigger value="cc" className="text-xs">
+            Kostenstellen
+          </TabsTrigger>
+          <TabsTrigger value="groups" className="text-xs">
+            Gruppen
+          </TabsTrigger>
+          <TabsTrigger value="budget" className="text-xs">
+            Budgets
+          </TabsTrigger>
+          <TabsTrigger value="partners" className="text-xs">
+            Partner
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="text-xs">
+            Einstellungen
+          </TabsTrigger>
+          <TabsTrigger value="audit" className="text-xs">
+            Protokoll
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="users" className="mt-6"><UsersTab /></TabsContent>
-        <TabsContent value="projects" className="mt-6"><ProjectsTab /></TabsContent>
-        <TabsContent value="cc" className="mt-6"><CostCentersTab /></TabsContent>
-        <TabsContent value="groups" className="mt-6"><GroupsTab /></TabsContent>
-        <TabsContent value="budget" className="mt-6"><BudgetLinesTab /></TabsContent>
-        <TabsContent value="partners" className="mt-6"><PartnersTab /></TabsContent>
-        <TabsContent value="settings" className="mt-6"><SettingsTab /></TabsContent>
-        <TabsContent value="audit" className="mt-6"><AuditTab /></TabsContent>
+        <TabsContent value="users" className="mt-6">
+          <UsersTab />
+        </TabsContent>
+        <TabsContent value="projects" className="mt-6">
+          <ProjectsTab />
+        </TabsContent>
+        <TabsContent value="cc" className="mt-6">
+          <CostCentersTab />
+        </TabsContent>
+        <TabsContent value="groups" className="mt-6">
+          <GroupsTab />
+        </TabsContent>
+        <TabsContent value="budget" className="mt-6">
+          <BudgetLinesTab />
+        </TabsContent>
+        <TabsContent value="partners" className="mt-6">
+          <PartnersTab />
+        </TabsContent>
+        <TabsContent value="settings" className="mt-6">
+          <SettingsTab />
+        </TabsContent>
+        <TabsContent value="audit" className="mt-6">
+          <AuditTab />
+        </TabsContent>
       </Tabs>
     </PageContainer>
   );
@@ -100,7 +132,15 @@ function AdminPage() {
 
 // ---- Helpers ---------------------------------------------------------------
 
-function AdminCard({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+function AdminCard({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="bg-card ring-1 ring-black/5 rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-black/5">
@@ -118,7 +158,9 @@ function Table({ headers, children }: { headers: string[]; children: React.React
       <thead className="text-[10px] font-heading font-semibold uppercase tracking-widest text-muted-foreground bg-secondary/40">
         <tr>
           {headers.map((h) => (
-            <th key={h} className="text-left px-6 py-3">{h}</th>
+            <th key={h} className="text-left px-6 py-3">
+              {h}
+            </th>
           ))}
         </tr>
       </thead>
@@ -166,7 +208,9 @@ function UsersTab() {
               </span>
             </td>
             <td className="px-6 py-3 text-right">
-              <Button size="sm" variant="ghost">Bearbeiten</Button>
+              <Button size="sm" variant="ghost">
+                Bearbeiten
+              </Button>
             </td>
           </tr>
         ))}
@@ -198,7 +242,9 @@ function ProjectsTab() {
               {p.startDate} – {p.endDate}
             </td>
             <td className="px-6 py-3 text-right">
-              <Button size="sm" variant="ghost">Bearbeiten</Button>
+              <Button size="sm" variant="ghost">
+                Bearbeiten
+              </Button>
             </td>
           </tr>
         ))}
@@ -230,12 +276,16 @@ function CostCentersTab() {
               <td className="px-6 py-3 font-mono text-xs">{c.code}</td>
               <td className="px-6 py-3">{c.name}</td>
               <td className="px-6 py-3">
-                <span className={cn("text-xs", c.active ? "text-success" : "text-muted-foreground")}>
+                <span
+                  className={cn("text-xs", c.active ? "text-success" : "text-muted-foreground")}
+                >
                   {c.active ? "Aktiv" : "Inaktiv"}
                 </span>
               </td>
               <td className="px-6 py-3 text-right">
-                <Button size="sm" variant="ghost">Bearbeiten</Button>
+                <Button size="sm" variant="ghost">
+                  Bearbeiten
+                </Button>
               </td>
             </tr>
           ))}
@@ -285,7 +335,9 @@ function GroupsTab() {
           <div key={g.id} className="bg-card ring-1 ring-black/5 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-heading font-semibold text-sm">{g.name}</h3>
-              <Button size="sm" variant="ghost" className="h-7 px-2">Umbenennen</Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2">
+                Umbenennen
+              </Button>
             </div>
             <div className="space-y-1.5">
               {g.costCenterIds.map((id) => {
@@ -308,7 +360,9 @@ function GroupsTab() {
                 ) : null;
               })}
               {g.costCenterIds.length === 0 && (
-                <p className="text-xs text-muted-foreground italic">Noch keine Kostenstellen zugeordnet.</p>
+                <p className="text-xs text-muted-foreground italic">
+                  Noch keine Kostenstellen zugeordnet.
+                </p>
               )}
             </div>
             <AssignPicker
@@ -334,7 +388,8 @@ function GroupsTab() {
             Noch nicht zugeordnete Kostenstellen ({unassigned.length})
           </h3>
           <p className="text-xs text-muted-foreground mb-3">
-            Diese Kostenstellen existieren im System, sind aber in diesem Projekt keiner Gruppe zugeordnet.
+            Diese Kostenstellen existieren im System, sind aber in diesem Projekt keiner Gruppe
+            zugeordnet.
           </p>
           <div className="flex flex-wrap gap-2">
             {unassigned.map((c) => (
@@ -417,7 +472,9 @@ function BudgetLinesTab() {
               <td className="px-6 py-3 font-mono">{fmtEUR(b.allocated)}</td>
               <td className="px-6 py-3">{b.warningThresholdPct} %</td>
               <td className="px-6 py-3 text-right">
-                <Button size="sm" variant="ghost">Bearbeiten</Button>
+                <Button size="sm" variant="ghost">
+                  Bearbeiten
+                </Button>
               </td>
             </tr>
           );
@@ -450,7 +507,9 @@ function PartnersTab() {
               </span>
             </td>
             <td className="px-6 py-3 text-right">
-              <Button size="sm" variant="ghost">Bearbeiten</Button>
+              <Button size="sm" variant="ghost">
+                Bearbeiten
+              </Button>
             </td>
           </tr>
         ))}
@@ -465,7 +524,10 @@ function SettingsTab() {
   return (
     <div className="space-y-3">
       {settingsData.map((s) => (
-        <div key={s.key} className="bg-card ring-1 ring-black/5 rounded-xl p-5 flex items-center justify-between gap-6">
+        <div
+          key={s.key}
+          className="bg-card ring-1 ring-black/5 rounded-xl p-5 flex items-center justify-between gap-6"
+        >
           <div>
             <div className="text-sm font-medium">{s.label}</div>
             <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{s.key}</div>

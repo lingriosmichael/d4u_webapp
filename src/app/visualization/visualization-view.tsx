@@ -1,7 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { z } from "zod";
-import { PageContainer, PageHeader } from "@/components/app-shell";
+"use client";
+
+import Link from "next/link";
 import { useCurrentUser } from "@/lib/role-context";
+import { PageContainer, PageHeader } from "@/components/app-shell";
 import {
   projects,
   costCenterGroups,
@@ -13,28 +14,11 @@ import {
   getProject,
   getCostCenter,
 } from "@/lib/mock-data";
-import { Button } from "@/components/ui/button";
-import { ExternalLink, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const searchSchema = z.object({
-  project: z.string().optional(),
-});
-
-export const Route = createFileRoute("/visualization")({
-  validateSearch: (s) => searchSchema.parse(s),
-  head: () => ({
-    meta: [
-      { title: "Auswertung — D4U Finance" },
-      { name: "description", content: "Soll/Ist/Obligo je Projekt und Kostenstellen-Gruppe." },
-    ],
-  }),
-  component: Visualization,
-});
-
-function Visualization() {
+export function Visualization({ projectId: selectedProjectId }: { projectId?: string }) {
   const { user } = useCurrentUser();
-  const { project: selectedProjectId } = Route.useSearch();
 
   const visibleProjects =
     user.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects;
@@ -44,7 +28,9 @@ function Visualization() {
   }
 
   const pendingCount = expenses.filter((e) =>
-    ["finance_approval", "ceo_approval", "accounting_approval", "submitted_pending"].includes(e.status),
+    ["finance_approval", "ceo_approval", "accounting_approval", "submitted_pending"].includes(
+      e.status,
+    ),
   ).length;
   const openAdvances = expenses.filter((e) => e.status === "submitted_unverified").length;
 
@@ -53,19 +39,20 @@ function Visualization() {
       <PageHeader
         eyebrow="Auswertung"
         title="Budget-Status"
-        description="Ein kompakter Überblick der laufenden Projekte. Für Detailanalysen und Exporte verwenden Sie bitte Metabase."
-        actions={
-          <Button variant="outline" size="sm" asChild>
-            <a href="https://metabase.example.com" target="_blank" rel="noreferrer">
-              <ExternalLink className="size-3.5" /> Metabase öffnen
-            </a>
-          </Button>
-        }
+        description="Ein kompakter Überblick der laufenden Projekte nach Soll, Ist und Obligo."
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-        <StatCard label="Belege in Prüfung" value={String(pendingCount)} hint="Alle Freigabestufen" />
-        <StatCard label="Offene Vorschüsse" value={String(openAdvances)} hint="Warten auf Abrechnung" />
+        <StatCard
+          label="Belege in Prüfung"
+          value={String(pendingCount)}
+          hint="Alle Freigabestufen"
+        />
+        <StatCard
+          label="Offene Vorschüsse"
+          value={String(openAdvances)}
+          hint="Warten auf Abrechnung"
+        />
       </div>
 
       <div className="mb-4 flex items-center gap-4">
@@ -129,8 +116,7 @@ function ProjectRow({
 
   return (
     <Link
-      to="/visualization"
-      search={{ project: projectId }}
+      href={`/visualization?project=${projectId}`}
       className="block bg-card ring-1 ring-black/5 rounded-xl p-6 hover:ring-navy-600/30 transition-all"
     >
       <div className="flex justify-between items-center mb-4">
@@ -202,7 +188,7 @@ function ProjectDrilldown({ projectId }: { projectId: string }) {
   return (
     <PageContainer>
       <Link
-        to="/visualization"
+        href="/visualization"
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors"
       >
         <ArrowLeft className="size-3.5" /> Alle Projekte
@@ -211,7 +197,10 @@ function ProjectDrilldown({ projectId }: { projectId: string }) {
         eyebrow={project.code}
         title={project.name}
         description={
-          <>Gesamtbudget: {fmtEUR(total.soll)} · Ist: {fmtEUR(total.ist)} · Obligo: {fmtEUR(total.obligo)}</>
+          <>
+            Gesamtbudget: {fmtEUR(total.soll)} · Ist: {fmtEUR(total.ist)} · Obligo:{" "}
+            {fmtEUR(total.obligo)}
+          </>
         }
       />
 
@@ -234,13 +223,17 @@ function ProjectDrilldown({ projectId }: { projectId: string }) {
                 <div>
                   <div className="text-sm font-medium">{g.name}</div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">
-                    Enthält {g.costCenterIds.length} Kostenstellen — Budget wird auf Gruppenebene geführt.
+                    Enthält {g.costCenterIds.length} Kostenstellen — Budget wird auf Gruppenebene
+                    geführt.
                   </div>
                 </div>
                 <div className="text-xs text-muted-foreground font-mono">{fmtEUR(s.soll)}</div>
               </div>
               <div className="h-2.5 flex bg-secondary rounded-full overflow-hidden">
-                <div className="h-full bg-chart-ist" style={{ width: `${Math.min(istPct, 100)}%` }} />
+                <div
+                  className="h-full bg-chart-ist"
+                  style={{ width: `${Math.min(istPct, 100)}%` }}
+                />
                 <div
                   className="h-full bg-chart-obligo"
                   style={{ width: `${Math.min(obPct, Math.max(0, 100 - istPct))}%` }}
@@ -249,7 +242,11 @@ function ProjectDrilldown({ projectId }: { projectId: string }) {
               <div className="mt-4 grid grid-cols-4 divide-x divide-black/5">
                 <Metric label="Ist" value={fmtEUR(s.ist)} tone={warn ? "danger" : "default"} />
                 <Metric label="Obligo" value={fmtEUR(s.obligo)} />
-                <Metric label="Verfügbar" value={fmtEUR(Math.max(0, s.soll - s.ist - s.obligo))} tone="info" />
+                <Metric
+                  label="Verfügbar"
+                  value={fmtEUR(Math.max(0, s.soll - s.ist - s.obligo))}
+                  tone="info"
+                />
                 <Metric
                   label="Auslastung"
                   value={`${Math.round(((s.ist + s.obligo) / (s.soll || 1)) * 100)} %`}
@@ -277,14 +274,6 @@ function ProjectDrilldown({ projectId }: { projectId: string }) {
             </div>
           );
         })}
-      </div>
-
-      <div className="mt-10 text-center">
-        <Button variant="outline" asChild>
-          <a href="https://metabase.example.com" target="_blank" rel="noreferrer">
-            <ExternalLink className="size-3.5" /> Für tiefergehende Analysen — Metabase öffnen
-          </a>
-        </Button>
       </div>
     </PageContainer>
   );

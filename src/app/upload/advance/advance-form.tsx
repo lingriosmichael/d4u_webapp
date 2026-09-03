@@ -1,4 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PageContainer, PageHeader } from "@/components/app-shell";
 import { useCurrentUser } from "@/lib/role-context";
@@ -24,17 +27,13 @@ import {
 import { ArrowLeft, Info } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/upload/advance")({
-  head: () => ({ meta: [{ title: "Partner-Vorschuss anlegen — D4U Finance" }] }),
-  component: AdvanceForm,
-});
-
-function AdvanceForm() {
+export function AdvanceForm() {
   const { user } = useCurrentUser();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const availableProjects = useMemo(
-    () => (user.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects),
+    () =>
+      user.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects,
     [user],
   );
 
@@ -47,7 +46,9 @@ function AdvanceForm() {
 
   const groups = projectId ? groupsForProject(projectId) : [];
   const group = groups.find((g) => g.id === groupId);
-  const groupCostCenters = group ? group.costCenterIds.map((id) => getCostCenter(id)).filter(Boolean) : [];
+  const groupCostCenters = group
+    ? group.costCenterIds.map((id) => getCostCenter(id)).filter(Boolean)
+    : [];
   const project = availableProjects.find((p) => p.id === projectId);
   const costCenter = costCenters.find((c) => c.id === costCenterId);
   const partner = partners.find((p) => p.id === partnerId);
@@ -68,13 +69,13 @@ function AdvanceForm() {
     toast.success("Vorschuss angelegt", {
       description: "Der Vorschuss ist zur Auszahlung freigegeben.",
     });
-    navigate({ to: "/expenses/$id", params: { id: "EXP-9008" } });
+    router.push("/expenses/EXP-9008");
   };
 
   return (
     <PageContainer>
       <Link
-        to="/upload"
+        href="/upload"
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors"
       >
         <ArrowLeft className="size-3.5" /> Zurück zur Auswahl
@@ -128,7 +129,9 @@ function AdvanceForm() {
                   disabled={!projectId}
                 >
                   <SelectTrigger id="group" className="mt-1.5">
-                    <SelectValue placeholder={projectId ? "Gruppe auswählen" : "Erst Projekt wählen"} />
+                    <SelectValue
+                      placeholder={projectId ? "Gruppe auswählen" : "Erst Projekt wählen"}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {groups.map((g) => (
@@ -148,7 +151,9 @@ function AdvanceForm() {
                 </Label>
                 <Select value={costCenterId} onValueChange={setCostCenterId} disabled={!groupId}>
                   <SelectTrigger id="cc" className="mt-1.5">
-                    <SelectValue placeholder={groupId ? "Kostenstelle auswählen" : "Erst Gruppe wählen"} />
+                    <SelectValue
+                      placeholder={groupId ? "Kostenstelle auswählen" : "Erst Gruppe wählen"}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {groupCostCenters.map((c) => (
@@ -214,8 +219,8 @@ function AdvanceForm() {
             <div className="flex gap-3 p-4 bg-navy-100/60 rounded-lg text-xs text-navy-900">
               <Info className="size-4 shrink-0 mt-0.5" />
               <p>
-                Belege werden bei der späteren Abrechnung durch die Buchhaltung eingesammelt — für den
-                Vorschuss selbst ist kein Beleg-Upload nötig.
+                Belege werden bei der späteren Abrechnung durch die Buchhaltung eingesammelt — für
+                den Vorschuss selbst ist kein Beleg-Upload nötig.
               </p>
             </div>
           </section>
@@ -229,20 +234,28 @@ function AdvanceForm() {
                 <dt className="text-[10px] font-heading font-semibold uppercase tracking-wider text-muted-foreground">
                   Projekt
                 </dt>
-                <dd className="mt-1">{project?.name ?? <span className="text-muted-foreground italic">—</span>}</dd>
+                <dd className="mt-1">
+                  {project?.name ?? <span className="text-muted-foreground italic">—</span>}
+                </dd>
               </div>
               <div>
                 <dt className="text-[10px] font-heading font-semibold uppercase tracking-wider text-muted-foreground">
                   Partner
                 </dt>
-                <dd className="mt-1">{partner?.name ?? <span className="text-muted-foreground italic">—</span>}</dd>
+                <dd className="mt-1">
+                  {partner?.name ?? <span className="text-muted-foreground italic">—</span>}
+                </dd>
               </div>
               <div>
                 <dt className="text-[10px] font-heading font-semibold uppercase tracking-wider text-muted-foreground">
                   Kostenstelle
                 </dt>
                 <dd className="mt-1">
-                  {costCenter ? `${costCenter.code} ${costCenter.name}` : <span className="text-muted-foreground italic">—</span>}
+                  {costCenter ? (
+                    `${costCenter.code} ${costCenter.name}`
+                  ) : (
+                    <span className="text-muted-foreground italic">—</span>
+                  )}
                 </dd>
               </div>
               <div>

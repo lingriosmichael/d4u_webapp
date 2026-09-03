@@ -1,4 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PageContainer, PageHeader } from "@/components/app-shell";
 import { useCurrentUser } from "@/lib/role-context";
@@ -17,17 +20,13 @@ import {
 import { ArrowLeft, Upload as UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/upload/expense")({
-  head: () => ({ meta: [{ title: "Standardbeleg einreichen — D4U Finance" }] }),
-  component: StandardExpenseForm,
-});
-
-function StandardExpenseForm() {
+export function StandardExpenseForm() {
   const { user } = useCurrentUser();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const availableProjects = useMemo(
-    () => (user.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects),
+    () =>
+      user.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects,
     [user],
   );
 
@@ -42,7 +41,9 @@ function StandardExpenseForm() {
 
   const groups = projectId ? groupsForProject(projectId) : [];
   const group = groups.find((g) => g.id === groupId);
-  const groupCostCenters = group ? group.costCenterIds.map((id) => getCostCenter(id)).filter(Boolean) : [];
+  const groupCostCenters = group
+    ? group.costCenterIds.map((id) => getCostCenter(id)).filter(Boolean)
+    : [];
 
   const project = availableProjects.find((p) => p.id === projectId);
   const costCenter = costCenters.find((c) => c.id === costCenterId);
@@ -62,14 +63,14 @@ function StandardExpenseForm() {
     toast.success("Beleg wurde eingereicht", {
       description: "Der Beleg befindet sich nun in der Finanzprüfung.",
     });
-    // In real app, POST to API and get id; here we route to a mock detail.
-    navigate({ to: "/expenses/$id", params: { id: "EXP-9021" } });
+    // In real app, POST to API and get id; here we route to a fixture detail.
+    router.push("/expenses/EXP-9021");
   };
 
   return (
     <PageContainer>
       <Link
-        to="/upload"
+        href="/upload"
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors"
       >
         <ArrowLeft className="size-3.5" /> Zurück zur Auswahl
@@ -124,7 +125,9 @@ function StandardExpenseForm() {
                   disabled={!projectId}
                 >
                   <SelectTrigger id="group" className="mt-1.5">
-                    <SelectValue placeholder={projectId ? "Gruppe auswählen" : "Erst Projekt wählen"} />
+                    <SelectValue
+                      placeholder={projectId ? "Gruppe auswählen" : "Erst Projekt wählen"}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {groups.map((g) => (
@@ -143,7 +146,9 @@ function StandardExpenseForm() {
               </Label>
               <Select value={costCenterId} onValueChange={setCostCenterId} disabled={!groupId}>
                 <SelectTrigger id="cc" className="mt-1.5">
-                  <SelectValue placeholder={groupId ? "Kostenstelle auswählen" : "Erst Gruppe wählen"} />
+                  <SelectValue
+                    placeholder={groupId ? "Kostenstelle auswählen" : "Erst Gruppe wählen"}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {groupCostCenters.map((c) => (
@@ -251,7 +256,12 @@ function StandardExpenseForm() {
                 <dd className="mt-1 text-foreground">
                   {project?.name ?? <span className="text-muted-foreground italic">—</span>}
                   {group && <> · {group.name}</>}
-                  {costCenter && <> · {costCenter.code} {costCenter.name}</>}
+                  {costCenter && (
+                    <>
+                      {" "}
+                      · {costCenter.code} {costCenter.name}
+                    </>
+                  )}
                 </dd>
               </div>
               <div>

@@ -1,4 +1,6 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PageContainer, PageHeader, StatusPill } from "@/components/app-shell";
 import { useCurrentUser } from "@/lib/role-context";
@@ -14,7 +16,6 @@ import {
   fmtDateTime,
   statusLabel,
   statusTone,
-  costCenters,
   groupsForProject,
   type Expense,
   type ReconciliationLine,
@@ -43,34 +44,10 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Plus, Trash2, Undo2 } from "luc
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/expenses/$id")({
-  loader: ({ params }) => {
-    const e = getExpense(params.id);
-    if (!e) throw notFound();
-    return { expenseId: e.id };
-  },
-  head: ({ params }) => ({
-    meta: [{ title: `${params.id} — D4U Finance` }, { name: "robots", content: "noindex" }],
-  }),
-  component: ExpenseDetail,
-  notFoundComponent: () => (
-    <PageContainer>
-      <PageHeader
-        title="Beleg nicht gefunden"
-        description="Der angeforderte Beleg existiert nicht oder wurde gelöscht."
-      />
-      <Link to="/" className="text-navy-800 text-sm underline">
-        Zurück zur Übersicht
-      </Link>
-    </PageContainer>
-  ),
-});
-
 type Mode = "review" | "edit" | "reconcile" | "readonly";
 
-function ExpenseDetail() {
-  const { id } = Route.useParams();
-  const expense = getExpense(id)!;
+export function ExpenseDetailView({ expenseId }: { expenseId: string }) {
+  const expense = getExpense(expenseId)!;
   const { user } = useCurrentUser();
 
   const mode: Mode = useMemo(() => {
@@ -101,7 +78,7 @@ function ExpenseDetail() {
   return (
     <PageContainer>
       <Link
-        to="/"
+        href="/"
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors"
       >
         <ArrowLeft className="size-3.5" /> Zurück zur Übersicht
@@ -113,10 +90,17 @@ function ExpenseDetail() {
         description={
           <>
             {project?.name} · {group?.name}
-            {costCenter && <> · {costCenter.code} {costCenter.name}</>}
+            {costCenter && (
+              <>
+                {" "}
+                · {costCenter.code} {costCenter.name}
+              </>
+            )}
           </>
         }
-        actions={<StatusPill tone={statusTone(expense.status)}>{statusLabel(expense.status)}</StatusPill>}
+        actions={
+          <StatusPill tone={statusTone(expense.status)}>{statusLabel(expense.status)}</StatusPill>
+        }
       />
 
       {mode === "edit" && lastRejection && (
@@ -161,7 +145,10 @@ function ExpenseDetail() {
               {partner && <MetaRow label="Partner" value={partner.name} />}
               {expense.vendor && <MetaRow label="Lieferant" value={expense.vendor} />}
               {expense.invoiceNumber && (
-                <MetaRow label="Rechnungsnr." value={<span className="font-mono">{expense.invoiceNumber}</span>} />
+                <MetaRow
+                  label="Rechnungsnr."
+                  value={<span className="font-mono">{expense.invoiceNumber}</span>}
+                />
               )}
               <MetaRow label="Beleg" value={receiptLabel(expense.receiptStatus)} />
             </div>
@@ -183,9 +170,12 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 function receiptLabel(s: Expense["receiptStatus"]) {
   switch (s) {
-    case "attached": return "Angehängt";
-    case "missing": return "Fehlt noch";
-    case "not_applicable": return "Nicht erforderlich";
+    case "attached":
+      return "Angehängt";
+    case "missing":
+      return "Fehlt noch";
+    case "not_applicable":
+      return "Nicht erforderlich";
   }
 }
 
@@ -198,13 +188,24 @@ function DetailsCard({ expense }: { expense: Expense }) {
     <section className="bg-card ring-1 ring-black/5 rounded-xl p-6">
       <h2 className="font-heading font-semibold text-sm mb-5">Belegdaten</h2>
       <dl className="grid grid-cols-1 md:grid-cols-2 gap-y-5 gap-x-8">
-        <Field label="Betrag" value={<span className="font-mono font-semibold text-base">{fmtEUR(expense.amount)}</span>} />
+        <Field
+          label="Betrag"
+          value={
+            <span className="font-mono font-semibold text-base">{fmtEUR(expense.amount)}</span>
+          }
+        />
         <Field label="Projekt" value={project?.name} />
         <Field label="Kostenstellen-Gruppe" value={group?.name} />
-        <Field label="Kostenstelle" value={costCenter ? `${costCenter.code} — ${costCenter.name}` : "—"} />
+        <Field
+          label="Kostenstelle"
+          value={costCenter ? `${costCenter.code} — ${costCenter.name}` : "—"}
+        />
         {expense.vendor && <Field label="Lieferant" value={expense.vendor} />}
         {expense.invoiceNumber && (
-          <Field label="Rechnungsnr." value={<span className="font-mono">{expense.invoiceNumber}</span>} />
+          <Field
+            label="Rechnungsnr."
+            value={<span className="font-mono">{expense.invoiceNumber}</span>}
+          />
         )}
         <div className="md:col-span-2">
           <Field label="Beschreibung" value={expense.description} />
@@ -251,7 +252,9 @@ function Timeline({ expense }: { expense: Expense }) {
               {actor?.name ?? "System"} · {fmtDateTime(log.at)}
             </div>
             {log.note && (
-              <p className="text-xs text-muted-foreground mt-1.5 italic leading-relaxed">"{log.note}"</p>
+              <p className="text-xs text-muted-foreground mt-1.5 italic leading-relaxed">
+                &ldquo;{log.note}&rdquo;
+              </p>
             )}
           </li>
         );
@@ -262,13 +265,28 @@ function Timeline({ expense }: { expense: Expense }) {
 
 function actionLabel(a: Expense["logs"][number]["action"]) {
   switch (a) {
-    case "submitted": return "Eingereicht";
-    case "approved": return "Freigegeben";
-    case "rejected": return "Abgelehnt";
-    case "requested_changes": return "Korrektur angefordert";
-    case "resubmitted": return "Erneut eingereicht";
-    case "reconciled": return "Abgerechnet";
-    case "undo_approval": return "Freigabe zurückgezogen";
+    case "submitted":
+      return "Eingereicht";
+    case "approved":
+      return "Freigegeben";
+    case "rejected":
+      return "Abgelehnt";
+    case "requested_changes":
+      return "Korrektur angefordert";
+    case "resubmitted":
+      return "Erneut eingereicht";
+    case "reconciled":
+      return "Abgerechnet";
+    case "undo_approval":
+      return "Freigabe zurückgezogen";
+    case "documents_received":
+      return "Unterlagen eingegangen";
+    case "marked_paid":
+      return "Als bezahlt markiert";
+    case "reassigned":
+      return "Umgewidmet";
+    case "escalated_ceo":
+      return "An Geschäftsführung eskaliert";
   }
 }
 
@@ -308,8 +326,8 @@ function ReviewActions({ expense }: { expense: Expense }) {
           <DialogHeader>
             <DialogTitle>Korrektur anfordern</DialogTitle>
             <DialogDescription>
-              Bitte geben Sie eine konkrete Begründung an. Die einreichende Person sieht diese direkt beim
-              Öffnen des Belegs.
+              Bitte geben Sie eine konkrete Begründung an. Die einreichende Person sieht diese
+              direkt beim Öffnen des Belegs.
             </DialogDescription>
           </DialogHeader>
           <Textarea
@@ -359,7 +377,8 @@ function UndoApprovalCard({ expense }: { expense: Expense }) {
           <DialogHeader>
             <DialogTitle>Freigabe zurückziehen</DialogTitle>
             <DialogDescription>
-              Diese Aktion storniert die Auszahlung für {expense.id}. Bitte begründen Sie den Schritt.
+              Diese Aktion storniert die Auszahlung für {expense.id}. Bitte begründen Sie den
+              Schritt.
             </DialogDescription>
           </DialogHeader>
           <Textarea rows={4} value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -397,7 +416,9 @@ function EditForm({ expense }: { expense: Expense }) {
 
   const groups = groupsForProject(projectId);
   const group = groups.find((g) => g.id === groupId);
-  const groupCostCenters = group ? group.costCenterIds.map((id) => getCostCenter(id)).filter(Boolean) : [];
+  const groupCostCenters = group
+    ? group.costCenterIds.map((id) => getCostCenter(id)).filter(Boolean)
+    : [];
 
   const handleResubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -407,7 +428,10 @@ function EditForm({ expense }: { expense: Expense }) {
   };
 
   return (
-    <form onSubmit={handleResubmit} className="bg-card ring-1 ring-black/5 rounded-xl p-6 space-y-5">
+    <form
+      onSubmit={handleResubmit}
+      className="bg-card ring-1 ring-black/5 rounded-xl p-6 space-y-5"
+    >
       <h2 className="font-heading font-semibold text-sm">Änderungen vornehmen</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -478,11 +502,19 @@ function EditForm({ expense }: { expense: Expense }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
           <Label className="text-xs">Betrag (EUR)</Label>
-          <Input className="mt-1.5 font-mono" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <Input
+            className="mt-1.5 font-mono"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
         </div>
         <div>
           <Label className="text-xs">Rechnungsnummer</Label>
-          <Input className="mt-1.5" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
+          <Input
+            className="mt-1.5"
+            value={invoiceNumber}
+            onChange={(e) => setInvoiceNumber(e.target.value)}
+          />
         </div>
       </div>
 
@@ -493,7 +525,12 @@ function EditForm({ expense }: { expense: Expense }) {
 
       <div>
         <Label className="text-xs">Beschreibung</Label>
-        <Textarea className="mt-1.5" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+        <Textarea
+          className="mt-1.5"
+          rows={3}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
       </div>
 
       <div className="pt-4 flex justify-end">
@@ -568,8 +605,8 @@ function ReconcileForm({ expense }: { expense: Expense }) {
       <div className="p-6 border-b border-black/5">
         <h2 className="font-heading font-semibold text-sm">Vorschuss-Abrechnung</h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Erfassen Sie eine Position pro Beleg. Netto wird automatisch aus Brutto und USt-Satz berechnet
-          und kann bei Bedarf überschrieben werden.
+          Erfassen Sie eine Position pro Beleg. Netto wird automatisch aus Brutto und USt-Satz
+          berechnet und kann bei Bedarf überschrieben werden.
         </p>
       </div>
 
@@ -604,8 +641,10 @@ function ReconcileForm({ expense }: { expense: Expense }) {
       <div className="p-6 border-t border-black/5 bg-secondary/30 flex items-center justify-between">
         <p className="text-xs text-muted-foreground max-w-md">
           {diff > 0 && !overBudget && (
-            <>Der nicht abgerechnete Betrag ({fmtEUR(diff)}) fließt automatisch in das verfügbare
-            Budget zurück.</>
+            <>
+              Der nicht abgerechnete Betrag ({fmtEUR(diff)}) fließt automatisch in das verfügbare
+              Budget zurück.
+            </>
           )}
           {overBudget && (
             <span className="text-destructive">

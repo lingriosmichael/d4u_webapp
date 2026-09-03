@@ -1,4 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { PageContainer, PageHeader, StatusPill } from "@/components/app-shell";
 import { useCurrentUser } from "@/lib/role-context";
 import {
@@ -17,23 +19,11 @@ import {
 import { Card } from "@/components/ui/card";
 import { ArrowUpRight, CheckCircle2 } from "lucide-react";
 
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Übersicht — D4U Finance" },
-      { name: "description", content: "Ihre offenen Aufgaben und Projektbudgets im Überblick." },
-    ],
-  }),
-  component: Dashboard,
-});
-
-function Dashboard() {
+export function DashboardView() {
   const { user } = useCurrentUser();
   const pending = needsActionFor(user);
   const visibleProjects =
-    user.role === "project_manager"
-      ? projects.filter((p) => p.leadUserId === user.id)
-      : projects;
+    user.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects;
 
   return (
     <PageContainer>
@@ -53,7 +43,9 @@ function Dashboard() {
             <CheckCircle2 className="size-5 text-success" />
           </div>
           <h2 className="font-heading font-semibold text-foreground">Alles erledigt.</h2>
-          <p className="text-sm text-muted-foreground mt-1">Keine Belege warten aktuell auf Ihre Aktion.</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Keine Belege warten aktuell auf Ihre Aktion.
+          </p>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -64,8 +56,7 @@ function Dashboard() {
             return (
               <Link
                 key={e.id}
-                to="/expenses/$id"
-                params={{ id: e.id }}
+                href={`/expenses/${e.id}`}
                 className="group bg-card ring-1 ring-black/5 rounded-xl p-5 flex flex-col justify-between h-48 hover:ring-navy-600/30 transition-all"
               >
                 <div>
@@ -80,7 +71,9 @@ function Dashboard() {
                     {project?.name} · {fmtEUR(e.amount)}
                   </p>
                   {partner && (
-                    <p className="text-[10px] text-muted-foreground mt-1">Partner: {partner.name}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Partner: {partner.name}
+                    </p>
                   )}
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 border-t border-black/5">
@@ -114,19 +107,23 @@ function Dashboard() {
             return (
               <Link
                 key={p.id}
-                to="/visualization"
-                search={{ project: p.id }}
+                href={`/visualization?project=${p.id}`}
                 className="block bg-card ring-1 ring-black/5 rounded-xl p-5 hover:ring-navy-600/30 transition-all"
               >
                 <div className="flex justify-between items-center mb-3">
                   <div>
                     <div className="text-sm font-medium">{p.name}</div>
-                    <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{p.code}</div>
+                    <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                      {p.code}
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground">Gesamt: {fmtEUR(soll)}</div>
                 </div>
                 <div className="h-2 flex bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-chart-ist" style={{ width: `${Math.min(istPct, 100)}%` }} />
+                  <div
+                    className="h-full bg-chart-ist"
+                    style={{ width: `${Math.min(istPct, 100)}%` }}
+                  />
                   <div
                     className="h-full bg-chart-obligo"
                     style={{ width: `${Math.min(obPct, Math.max(0, 100 - istPct))}%` }}
@@ -186,17 +183,19 @@ function Dashboard() {
                     className="border-t border-black/5 hover:bg-secondary/40 cursor-pointer transition-colors"
                   >
                     <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
-                      <Link to="/expenses/$id" params={{ id: e.id }}>
-                        {e.id}
-                      </Link>
+                      <Link href={`/expenses/${e.id}`}>{e.id}</Link>
                     </td>
                     <td className="px-5 py-3">{e.description}</td>
                     <td className="px-5 py-3 text-muted-foreground">{project?.name}</td>
-                    <td className="px-5 py-3 text-right font-medium tabular-nums">{fmtEUR(e.amount)}</td>
+                    <td className="px-5 py-3 text-right font-medium tabular-nums">
+                      {fmtEUR(e.amount)}
+                    </td>
                     <td className="px-5 py-3">
                       <StatusPill tone={statusTone(e.status)}>{statusLabel(e.status)}</StatusPill>
                     </td>
-                    <td className="px-5 py-3 text-muted-foreground text-xs">{fmtDate(e.createdAt)}</td>
+                    <td className="px-5 py-3 text-muted-foreground text-xs">
+                      {fmtDate(e.createdAt)}
+                    </td>
                   </tr>
                 );
               })}
