@@ -139,11 +139,17 @@ begin
     (v_grp_str_travel,  v_prj_str, 'Dienstreisen');
 
   -- ---- cost_center_group_members ------------------------------------------
+  -- A cost center can only belong to one group per project (enforced by
+  -- cost_center_group_members_one_group_per_project) — stricter than
+  -- mock-data.ts's fixture, which had cc_1002 (Honorare) in both
+  -- Kita-Ausbau Süd and Sprachförderung. Keeping it only in the former here;
+  -- worth noting for any future Verwaltung/Gruppen UI that lets someone
+  -- assign a cost center to a group, since this would only surface as a
+  -- database error, not a client-side validation message, without one.
   insert into public.cost_center_group_members (group_id, cost_center_id) values
     (v_grp_bib_kita,    v_cc_1001),
     (v_grp_bib_kita,    v_cc_1002),
     (v_grp_bib_sprach,  v_cc_2001),
-    (v_grp_bib_sprach,  v_cc_1002),
     (v_grp_bib_travel,  v_cc_3100),
     (v_grp_bib_travel,  v_cc_3200),
     (v_grp_int_partner, v_cc_6000),
