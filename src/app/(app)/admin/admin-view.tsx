@@ -32,19 +32,22 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Plus, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { AdminFormDialog, type AdminField } from "./admin-form-dialog";
+import { callBackend, BackendError } from "@/lib/api";
 
-// Converted from lib/mock-data.ts to real Supabase reads, fetched
-// server-side by page.tsx and passed down as props (same pattern as
-// Übersicht/Expense Detail). Write actions ("anlegen"/"Bearbeiten" below)
-// are NOT yet wired to d4u_backend's admin CRUD routes — still toast
-// stubs, same as before this conversion. Read src/lib/api.ts's
-// admin.*.upsert endpoints and d4u_backend's src/lib/admin-resources.ts
-// for what's already built and waiting to be called from here.
+// Reads: real Supabase, fetched server-side by page.tsx and passed down as
+// props (same pattern as Übersicht/Expense Detail). Writes: real
+// d4u_backend calls via AdminFormDialog (./admin-form-dialog.tsx), one
+// generic create/edit dialog reused across every tab instead of six
+// bespoke forms. The Settings and Protokoll tabs stay read-only by
+// design — see SettingsTab's own copy ("auch dann, wenn sie aktuell nicht
+// veränderbar sind") and AuditTab's ("Nur Ansicht").
 export function AdminPage({
   users,
   projects,
@@ -123,7 +126,7 @@ export function AdminPage({
           <UsersTab users={users} />
         </TabsContent>
         <TabsContent value="projects" className="mt-6">
-          <ProjectsTab projects={projects} />
+          <ProjectsTab projects={projects} users={users} />
         </TabsContent>
         <TabsContent value="cc" className="mt-6">
           <CostCentersTab costCenters={costCenters} />
@@ -132,7 +135,7 @@ export function AdminPage({
           <GroupsTab projects={projects} groups={groups} costCenters={costCenters} />
         </TabsContent>
         <TabsContent value="budget" className="mt-6">
-          <BudgetLinesTab budgetLines={budgetLines} />
+          <BudgetLinesTab budgetLines={budgetLines} projects={projects} groups={groups} />
         </TabsContent>
         <TabsContent value="partners" className="mt-6">
           <PartnersTab partners={partners} />
@@ -197,14 +200,43 @@ const roleLabels: Record<Role, string> = {
   admin: "Administration",
 };
 
+const ROLE_OPTIONS = (Object.keys(roleLabels) as Role[]).map((r) => ({
+  value: r,
+  label: roleLabels[r],
+}));
+
+const USER_EDIT_FIELDS: AdminField[] = [
+  { key: "email", label: "E-Mail", type: "email", required: true },
+  { key: "first_name", label: "Vorname", type: "text", required: true },
+  { key: "last_name", label: "Nachname", type: "text", required: true },
+  { key: "role", label: "Rolle", type: "select", options: ROLE_OPTIONS, required: true },
+];
+
+// "id" is caller-supplied on create — it must be an existing auth.users
+// UUID (Supabase Auth account created via the dashboard first), since this
+// backend has no route to create Auth users itself. See
+// d4u_backend/src/lib/admin-resources.ts's callerSuppliesId flag.
+const USER_CREATE_FIELDS: AdminField[] = [
+  { key: "id", label: "Auth-Konto-ID (aus Supabase Dashboard)", type: "text", required: true },
+  ...USER_EDIT_FIELDS,
+];
+
 function UsersTab({ users }: { users: AdminUser[] }) {
   return (
     <AdminCard
       title="Nutzer"
       action={
-        <Button size="sm" onClick={() => toast.info("Formular öffnen (Demo)")}>
-          <Plus className="size-3.5" /> Nutzer anlegen
-        </Button>
+        <AdminFormDialog
+          title="Nutzer anlegen"
+          endpoint="admin.users.upsert"
+          fields={USER_CREATE_FIELDS}
+          initial={{ role: "project_manager" }}
+          trigger={
+            <Button size="sm">
+              <Plus className="size-3.5" /> Nutzer anlegen
+            </Button>
+          }
+        />
       }
     >
       <Table headers={["Name", "E-Mail", "Rolle", "Status", ""]}>
@@ -225,14 +257,25 @@ function UsersTab({ users }: { users: AdminUser[] }) {
                 {u.active ? "Aktiv" : "Deaktiviert"}
               </span>
             </td>
-            <td className="px-6 py-3 text-right">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => toast.info("Formular öffnen (Demo)")}
-              >
-                Bearbeiten
-              </Button>
+            <td className="px-6 py-3 text-right space-x-1">
+              <DeactivateUserButton user={u} />
+              <AdminFormDialog
+                title="Nutzer bearbeiten"
+                endpoint="admin.users.upsert"
+                fields={USER_EDIT_FIELDS}
+                recordId={u.id}
+                initial={{
+                  email: u.email,
+                  first_name: u.name.split(" ")[0] ?? "",
+                  last_name: u.name.split(" ").slice(1).join(" "),
+                  role: u.role,
+                }}
+                trigger={
+                  <Button size="sm" variant="ghost">
+                    Bearbeiten
+                  </Button>
+                }
+              />
             </td>
           </tr>
         ))}
@@ -241,16 +284,112 @@ function UsersTab({ users }: { users: AdminUser[] }) {
   );
 }
 
+// Deactivating a user is its own explicit, confirmed action — deliberately
+// separate from the generic edit dialog above, per this frontend's own
+// rule (deactivation has real access-control consequences: it should block
+// the user's JWT at the backend, not just hide them from a dropdown).
+function DeactivateUserButton({ user }: { user: AdminUser }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const nextActive = !user.active;
+
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    try {
+      await callBackend("admin.users.setActive", { id: user.id, active: nextActive });
+      toast.success(nextActive ? "Konto aktiviert" : "Konto deaktiviert");
+      setOpen(false);
+      router.refresh();
+    } catch (error) {
+      toast.error("Aktion fehlgeschlagen", {
+        description:
+          error instanceof BackendError ? error.message : "Bitte versuchen Sie es erneut.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost">
+          {user.active ? "Deaktivieren" : "Aktivieren"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{user.active ? "Konto deaktivieren" : "Konto aktivieren"}</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          {user.active
+            ? `${user.name} verliert damit sofort den Zugriff — auch ein bereits laufendes Login wird beim nächsten Aufruf abgelehnt.`
+            : `${user.name} erhält damit wieder Zugriff auf D4U Finance.`}
+        </p>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>
+            Abbrechen
+          </Button>
+          <Button
+            variant={user.active ? "destructive" : "default"}
+            onClick={handleConfirm}
+            disabled={submitting}
+          >
+            {user.active ? "Deaktivieren" : "Aktivieren"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ---- Projects --------------------------------------------------------------
 
-function ProjectsTab({ projects }: { projects: AdminProject[] }) {
+// Verified against the live projects_status_check constraint.
+const PROJECT_STATUS_OPTIONS = [
+  { value: "active", label: "Aktiv" },
+  { value: "closed", label: "Abgeschlossen" },
+  { value: "on_hold", label: "Pausiert" },
+];
+
+function ProjectsTab({ projects, users }: { projects: AdminProject[]; users: AdminUser[] }) {
+  const projectFields: AdminField[] = [
+    { key: "code", label: "Code", type: "text", required: true },
+    { key: "name", label: "Name", type: "text", required: true },
+    { key: "funding_program", label: "Förderprogramm", type: "text" },
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: PROJECT_STATUS_OPTIONS,
+      required: true,
+    },
+    {
+      key: "lead_user_id",
+      label: "Leitung",
+      type: "select",
+      options: users.map((u) => ({ value: u.id, label: u.name })),
+    },
+    { key: "start_date", label: "Start", type: "date" },
+    { key: "end_date", label: "Ende", type: "date" },
+  ];
+
   return (
     <AdminCard
       title="Projekte"
       action={
-        <Button size="sm" onClick={() => toast.info("Projekt anlegen (Demo)")}>
-          <Plus className="size-3.5" /> Projekt anlegen
-        </Button>
+        <AdminFormDialog
+          title="Projekt anlegen"
+          endpoint="admin.projects.upsert"
+          fields={projectFields}
+          initial={{ status: "active" }}
+          trigger={
+            <Button size="sm">
+              <Plus className="size-3.5" /> Projekt anlegen
+            </Button>
+          }
+        />
       }
     >
       <Table headers={["Code", "Name", "Förderprogramm", "Leitung", "Zeitraum", ""]}>
@@ -264,13 +403,26 @@ function ProjectsTab({ projects }: { projects: AdminProject[] }) {
               {p.startDate} – {p.endDate}
             </td>
             <td className="px-6 py-3 text-right">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => toast.info("Formular öffnen (Demo)")}
-              >
-                Bearbeiten
-              </Button>
+              <AdminFormDialog
+                title="Projekt bearbeiten"
+                endpoint="admin.projects.upsert"
+                fields={projectFields}
+                recordId={p.id}
+                initial={{
+                  code: p.code,
+                  name: p.name,
+                  funding_program: p.fundingProgram ?? "",
+                  status: p.status,
+                  lead_user_id: p.leadUserId ?? "",
+                  start_date: p.startDate ?? "",
+                  end_date: p.endDate ?? "",
+                }}
+                trigger={
+                  <Button size="sm" variant="ghost">
+                    Bearbeiten
+                  </Button>
+                }
+              />
             </td>
           </tr>
         ))}
@@ -280,6 +432,12 @@ function ProjectsTab({ projects }: { projects: AdminProject[] }) {
 }
 
 // ---- Cost centers ----------------------------------------------------------
+
+const COST_CENTER_FIELDS: AdminField[] = [
+  { key: "code", label: "Code", type: "text", required: true },
+  { key: "name", label: "Bezeichnung", type: "text", required: true },
+  { key: "active", label: "Aktiv", type: "switch" },
+];
 
 function CostCentersTab({ costCenters }: { costCenters: AdminCostCenter[] }) {
   return (
@@ -291,9 +449,17 @@ function CostCentersTab({ costCenters }: { costCenters: AdminCostCenter[] }) {
       <AdminCard
         title="Kostenstellen"
         action={
-          <Button size="sm" onClick={() => toast.info("Kostenstelle anlegen (Demo)")}>
-            <Plus className="size-3.5" /> Kostenstelle anlegen
-          </Button>
+          <AdminFormDialog
+            title="Kostenstelle anlegen"
+            endpoint="admin.costCenters.upsert"
+            fields={COST_CENTER_FIELDS}
+            initial={{ active: true }}
+            trigger={
+              <Button size="sm">
+                <Plus className="size-3.5" /> Kostenstelle anlegen
+              </Button>
+            }
+          />
         }
       >
         <Table headers={["Code", "Bezeichnung", "Status", ""]}>
@@ -309,13 +475,18 @@ function CostCentersTab({ costCenters }: { costCenters: AdminCostCenter[] }) {
                 </span>
               </td>
               <td className="px-6 py-3 text-right">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => toast.info("Formular öffnen (Demo)")}
-                >
-                  Bearbeiten
-                </Button>
+                <AdminFormDialog
+                  title="Kostenstelle bearbeiten"
+                  endpoint="admin.costCenters.upsert"
+                  fields={COST_CENTER_FIELDS}
+                  recordId={c.id}
+                  initial={{ code: c.code, name: c.name, active: c.active }}
+                  trigger={
+                    <Button size="sm" variant="ghost">
+                      Bearbeiten
+                    </Button>
+                  }
+                />
               </td>
             </tr>
           ))}
@@ -373,34 +544,23 @@ function GroupsTab({
           <div key={g.id} className="bg-card ring-1 ring-black/5 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-heading font-semibold text-sm">{g.name}</h3>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2"
-                onClick={() => toast.info("Umbenennen (Demo)")}
-              >
-                Umbenennen
-              </Button>
+              <AdminFormDialog
+                title="Gruppe umbenennen"
+                endpoint="admin.groups.upsert"
+                fields={[{ key: "name", label: "Name", type: "text", required: true }]}
+                recordId={g.id}
+                initial={{ name: g.name }}
+                trigger={
+                  <Button size="sm" variant="ghost" className="h-7 px-2">
+                    Umbenennen
+                  </Button>
+                }
+              />
             </div>
             <div className="space-y-1.5">
               {g.costCenterIds.map((id) => {
                 const c = costCenters.find((cc) => cc.id === id);
-                return c ? (
-                  <div
-                    key={id}
-                    className="flex items-center justify-between text-xs bg-secondary/60 rounded px-2.5 py-1.5"
-                  >
-                    <span>
-                      <span className="font-mono">{c.code}</span> · {c.name}
-                    </span>
-                    <button
-                      className="text-muted-foreground hover:text-destructive transition-colors"
-                      onClick={() => toast.info(`${c.name} entfernen (Demo)`)}
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ) : null;
+                return c ? <RemoveCostCenterRow key={id} costCenter={c} groupId={g.id} /> : null;
               })}
               {g.costCenterIds.length === 0 && (
                 <p className="text-xs text-muted-foreground italic">
@@ -408,21 +568,26 @@ function GroupsTab({
                 </p>
               )}
             </div>
-            <AssignPicker
-              unassigned={unassigned}
-              onPick={(cc) => toast.success(`${cc.name} → ${g.name} (Demo)`)}
-            />
+            <AssignPicker groupId={g.id} groupName={g.name} unassigned={unassigned} />
           </div>
         ))}
 
-        <button
-          onClick={() => toast.info("Neue Gruppe (Demo)")}
-          className="rounded-xl border-2 border-dashed border-border p-5 min-h-40 grid place-items-center text-sm text-muted-foreground hover:border-navy-600/40 hover:text-navy-800 transition-colors"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Plus className="size-4" /> Neue Gruppe anlegen
-          </span>
-        </button>
+        <AdminFormDialog
+          title="Neue Gruppe anlegen"
+          endpoint="admin.groups.upsert"
+          fields={[{ key: "name", label: "Name", type: "text", required: true }]}
+          initial={{ project_id: projectId, name: "" }}
+          trigger={
+            <button
+              disabled={!projectId}
+              className="rounded-xl border-2 border-dashed border-border p-5 min-h-40 grid place-items-center text-sm text-muted-foreground hover:border-navy-600/40 hover:text-navy-800 transition-colors disabled:opacity-50"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Plus className="size-4" /> Neue Gruppe anlegen
+              </span>
+            </button>
+          }
+        />
       </div>
 
       {unassigned.length > 0 && (
@@ -450,15 +615,77 @@ function GroupsTab({
   );
 }
 
-function AssignPicker({
-  unassigned,
-  onPick,
+function RemoveCostCenterRow({
+  costCenter,
+  groupId,
 }: {
-  unassigned: AdminCostCenter[];
-  onPick: (c: AdminCostCenter) => void;
+  costCenter: AdminCostCenter;
+  groupId: string;
 }) {
+  const router = useRouter();
+  const [removing, setRemoving] = useState(false);
+
+  const handleRemove = async () => {
+    setRemoving(true);
+    try {
+      await callBackend("admin.groups.setMembership", {
+        groupId,
+        costCenterId: costCenter.id,
+        action: "remove",
+      });
+      router.refresh();
+    } catch (error) {
+      toast.error("Konnte nicht entfernen", {
+        description:
+          error instanceof BackendError ? error.message : "Bitte versuchen Sie es erneut.",
+      });
+      setRemoving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between text-xs bg-secondary/60 rounded px-2.5 py-1.5">
+      <span>
+        <span className="font-mono">{costCenter.code}</span> · {costCenter.name}
+      </span>
+      <button
+        className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+        onClick={handleRemove}
+        disabled={removing}
+      >
+        <X className="size-3" />
+      </button>
+    </div>
+  );
+}
+
+function AssignPicker({
+  groupId,
+  groupName,
+  unassigned,
+}: {
+  groupId: string;
+  groupName: string;
+  unassigned: AdminCostCenter[];
+}) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   if (unassigned.length === 0) return null;
+
+  const handlePick = async (c: AdminCostCenter) => {
+    try {
+      await callBackend("admin.groups.setMembership", { groupId, costCenterId: c.id });
+      toast.success(`${c.name} → ${groupName}`);
+      setOpen(false);
+      router.refresh();
+    } catch (error) {
+      toast.error("Konnte nicht zuordnen", {
+        description:
+          error instanceof BackendError ? error.message : "Bitte versuchen Sie es erneut.",
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -474,10 +701,7 @@ function AssignPicker({
           {unassigned.map((c) => (
             <button
               key={c.id}
-              onClick={() => {
-                onPick(c);
-                setOpen(false);
-              }}
+              onClick={() => handlePick(c)}
               className="w-full text-left flex items-center justify-between px-3 py-2 rounded hover:bg-secondary transition-colors"
             >
               <span className="text-sm">
@@ -494,14 +718,78 @@ function AssignPicker({
 
 // ---- Budget lines ----------------------------------------------------------
 
-function BudgetLinesTab({ budgetLines }: { budgetLines: AdminBudgetLine[] }) {
+function BudgetLinesTab({
+  budgetLines,
+  projects,
+  groups,
+}: {
+  budgetLines: AdminBudgetLine[];
+  projects: AdminProject[];
+  groups: AdminGroup[];
+}) {
+  // Groups are labeled with their project's code so an admin can pick the
+  // right one without a cascading/dependent select — this dialog is
+  // generic and doesn't support that, and a two-step picker wasn't worth
+  // building for a field admins fill in rarely.
+  const groupOptions = groups.map((g) => {
+    const project = projects.find((p) => p.id === g.projectId);
+    return { value: g.id, label: `${project?.code ?? "?"} — ${g.name}` };
+  });
+
+  const createFields: AdminField[] = [
+    {
+      key: "project_id",
+      label: "Projekt",
+      type: "select",
+      required: true,
+      options: projects.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` })),
+    },
+    {
+      key: "group_id",
+      label: "Kostenstellen-Gruppe",
+      type: "select",
+      required: true,
+      options: groupOptions,
+    },
+    {
+      key: "allocated_amount",
+      label: "Zugewiesenes Budget (EUR)",
+      type: "number",
+      step: "0.01",
+      required: true,
+    },
+    { key: "warning_threshold_pct", label: "Warnschwelle (%)", type: "number", required: true },
+  ];
+
+  // Editable fields only: allocated_amount / warning_threshold_pct, per
+  // this frontend's own rule that consumed_amount/obligo_amount are
+  // RPC-owned and project/group reassignment isn't an admin-edit feature.
+  const editFields: AdminField[] = [
+    {
+      key: "allocated_amount",
+      label: "Zugewiesenes Budget (EUR)",
+      type: "number",
+      step: "0.01",
+      required: true,
+    },
+    { key: "warning_threshold_pct", label: "Warnschwelle (%)", type: "number", required: true },
+  ];
+
   return (
     <AdminCard
       title="Budget-Zeilen"
       action={
-        <Button size="sm" onClick={() => toast.info("Budget-Zeile anlegen (Demo)")}>
-          <Plus className="size-3.5" /> Budget-Zeile anlegen
-        </Button>
+        <AdminFormDialog
+          title="Budget-Zeile anlegen"
+          endpoint="admin.budgets.upsert"
+          fields={createFields}
+          initial={{ warning_threshold_pct: 80 }}
+          trigger={
+            <Button size="sm">
+              <Plus className="size-3.5" /> Budget-Zeile anlegen
+            </Button>
+          }
+        />
       }
     >
       <Table headers={["Projekt", "Gruppe", "Zugewiesen", "Warnschwelle", ""]}>
@@ -512,13 +800,21 @@ function BudgetLinesTab({ budgetLines }: { budgetLines: AdminBudgetLine[] }) {
             <td className="px-6 py-3 font-mono">{fmtEUR(b.allocated)}</td>
             <td className="px-6 py-3">{b.warningThresholdPct} %</td>
             <td className="px-6 py-3 text-right">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => toast.info("Formular öffnen (Demo)")}
-              >
-                Bearbeiten
-              </Button>
+              <AdminFormDialog
+                title="Budget-Zeile bearbeiten"
+                endpoint="admin.budgets.upsert"
+                fields={editFields}
+                recordId={b.id}
+                initial={{
+                  allocated_amount: b.allocated,
+                  warning_threshold_pct: b.warningThresholdPct,
+                }}
+                trigger={
+                  <Button size="sm" variant="ghost">
+                    Bearbeiten
+                  </Button>
+                }
+              />
             </td>
           </tr>
         ))}
@@ -529,14 +825,28 @@ function BudgetLinesTab({ budgetLines }: { budgetLines: AdminBudgetLine[] }) {
 
 // ---- Partners --------------------------------------------------------------
 
+const PARTNER_FIELDS: AdminField[] = [
+  { key: "name", label: "Name", type: "text", required: true },
+  { key: "contact_email", label: "Kontakt (E-Mail)", type: "email" },
+  { key: "active", label: "Aktiv", type: "switch" },
+];
+
 function PartnersTab({ partners }: { partners: AdminPartner[] }) {
   return (
     <AdminCard
       title="Partner"
       action={
-        <Button size="sm" onClick={() => toast.info("Partner anlegen (Demo)")}>
-          <Plus className="size-3.5" /> Partner anlegen
-        </Button>
+        <AdminFormDialog
+          title="Partner anlegen"
+          endpoint="admin.partners.upsert"
+          fields={PARTNER_FIELDS}
+          initial={{ active: true }}
+          trigger={
+            <Button size="sm">
+              <Plus className="size-3.5" /> Partner anlegen
+            </Button>
+          }
+        />
       }
     >
       <Table headers={["Name", "Kontakt", "Status", ""]}>
@@ -550,13 +860,18 @@ function PartnersTab({ partners }: { partners: AdminPartner[] }) {
               </span>
             </td>
             <td className="px-6 py-3 text-right">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => toast.info("Formular öffnen (Demo)")}
-              >
-                Bearbeiten
-              </Button>
+              <AdminFormDialog
+                title="Partner bearbeiten"
+                endpoint="admin.partners.upsert"
+                fields={PARTNER_FIELDS}
+                recordId={p.id}
+                initial={{ name: p.name, contact_email: p.contactEmail ?? "", active: p.active }}
+                trigger={
+                  <Button size="sm" variant="ghost">
+                    Bearbeiten
+                  </Button>
+                }
+              />
             </td>
           </tr>
         ))}
