@@ -198,11 +198,11 @@ begin
      null, v_pm, v_pm, 'needs_changes', '2024-10-01T09:00:00Z'),
 
     (gen_random_uuid(), 'partner_advance', v_prj_int, v_bl_4, null, v_partner_lernhaus,
-     5000.0, 'Vorschuss Lernhaus Q4', null, null, 'not_applicable',
+     5000.0, 'Vorschuss Lernhaus Q4', null, null, 'not_required',
      null, v_pm, v_acc, 'submitted_unverified', '2024-09-28T10:00:00Z'),
 
     (gen_random_uuid(), 'partner_advance', v_prj_int, v_bl_4, null, v_partner_kulturfonds,
-     3200.0, 'Vorschuss Kulturfonds Q4', null, null, 'not_applicable',
+     3200.0, 'Vorschuss Kulturfonds Q4', null, null, 'not_required',
      null, v_pm, v_acc, 'submitted_unverified', '2024-10-02T10:00:00Z'),
 
     (gen_random_uuid(), 'standard', v_prj_str, v_bl_6, v_cc_4100, null,
