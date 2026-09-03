@@ -8,11 +8,11 @@
 --
 -- Plain data inserts, not a schema/security change, so pasting this
 -- directly into the Supabase SQL editor is fine for a single dev/sandbox
--- project (unlike 0001_rls_policies.sql, which specifically warns against
+-- project (unlike ../../d4u_backend/supabase/migrations/0001_rls_policies.sql, which specifically warns against
 -- that for schema/security changes on staging/prod).
 --
 -- BEFORE RUNNING THIS:
--- 1. Apply 0001_rls_policies.sql first if you haven't (this seed doesn't
+-- 1. Apply ../../d4u_backend/supabase/migrations/0001_rls_policies.sql first if you haven't (this seed doesn't
 --    touch RLS, but nothing is testable without it).
 -- 2. Create Auth users via Dashboard -> Authentication -> Users. You only
 --    strictly need one to log in, but creating a few lets you compare an
@@ -33,7 +33,7 @@
 --    "User UID" column) into the `declare` block right below, replacing
 --    the placeholder 00000000-... values.
 --
--- Column names are cross-referenced against 0001_rls_policies.sql (ground
+-- Column names are cross-referenced against ../../d4u_backend/supabase/migrations/0001_rls_policies.sql (ground
 -- truth for the columns it references in USING clauses) and the
 -- implementation doc's data model for the rest — not yet against generated
 -- types (none exist yet, see src/lib/supabase/client.ts for the command).
