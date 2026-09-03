@@ -1,5 +1,10 @@
-// Mock data for D4U Finance Workflow. All amounts are EUR.
-// This mimics the shape the real Supabase schema would return.
+// FIXTURE DATA — not the real data layer.
+//
+// This file stands in for the backend/Supabase until that API exists (see
+// `lib/api.ts` for the write-path stub). Every route currently reads from the
+// arrays and selectors below directly; once the backend is up, that read
+// path is what gets replaced — the shapes here mirror the real schema so the
+// swap doesn't require restructuring the UI. All amounts are EUR.
 
 export type Role = "project_manager" | "finance_manager" | "accounting" | "ceo" | "admin";
 
@@ -148,17 +153,67 @@ export interface AuditLogEntry {
 // ---- Seed ------------------------------------------------------------------
 
 export const users: User[] = [
-  { id: "u_pm", name: "Thomas Meier", email: "thomas@d4u.example", role: "project_manager", active: true, initials: "TM" },
-  { id: "u_fin", name: "Marcus Chen", email: "marcus@d4u.example", role: "finance_manager", active: true, initials: "MC" },
-  { id: "u_acc", name: "Sarah Weber", email: "sarah@d4u.example", role: "accounting", active: true, initials: "SW" },
-  { id: "u_ceo", name: "Anna Krüger", email: "anna@d4u.example", role: "ceo", active: true, initials: "AK" },
-  { id: "u_admin", name: "Hanna Kaufmann", email: "hanna@d4u.example", role: "admin", active: true, initials: "HK" },
+  {
+    id: "u_pm",
+    name: "Thomas Meier",
+    email: "thomas@d4u.example",
+    role: "project_manager",
+    active: true,
+    initials: "TM",
+  },
+  {
+    id: "u_fin",
+    name: "Marcus Chen",
+    email: "marcus@d4u.example",
+    role: "finance_manager",
+    active: true,
+    initials: "MC",
+  },
+  {
+    id: "u_acc",
+    name: "Sarah Weber",
+    email: "sarah@d4u.example",
+    role: "accounting",
+    active: true,
+    initials: "SW",
+  },
+  {
+    id: "u_ceo",
+    name: "Anna Krüger",
+    email: "anna@d4u.example",
+    role: "ceo",
+    active: true,
+    initials: "AK",
+  },
+  {
+    id: "u_admin",
+    name: "Hanna Kaufmann",
+    email: "hanna@d4u.example",
+    role: "admin",
+    active: true,
+    initials: "HK",
+  },
 ];
 
 export const partners: Partner[] = [
-  { id: "p_lernhaus", name: "Lernhaus e.V.", contactEmail: "buchhaltung@lernhaus.example", active: true },
-  { id: "p_kulturfonds", name: "Kulturfonds Mitte", contactEmail: "verwaltung@kulturfonds.example", active: true },
-  { id: "p_sport", name: "Sportfonds Neukölln", contactEmail: "kontakt@sportfonds.example", active: true },
+  {
+    id: "p_lernhaus",
+    name: "Lernhaus e.V.",
+    contactEmail: "buchhaltung@lernhaus.example",
+    active: true,
+  },
+  {
+    id: "p_kulturfonds",
+    name: "Kulturfonds Mitte",
+    contactEmail: "verwaltung@kulturfonds.example",
+    active: true,
+  },
+  {
+    id: "p_sport",
+    name: "Sportfonds Neukölln",
+    contactEmail: "kontakt@sportfonds.example",
+    active: true,
+  },
 ];
 
 export const costCenters: CostCenter[] = [
@@ -206,23 +261,85 @@ export const projects: Project[] = [
 ];
 
 export const costCenterGroups: CostCenterGroup[] = [
-  { id: "g_bib_kita", projectId: "prj_bib", name: "Kita-Ausbau Süd", costCenterIds: ["cc_1001", "cc_1002"] },
-  { id: "g_bib_sprach", projectId: "prj_bib", name: "Sprachförderung", costCenterIds: ["cc_2001", "cc_1002"] },
-  { id: "g_bib_travel", projectId: "prj_bib", name: "Reise & Verpflegung", costCenterIds: ["cc_3100", "cc_3200"] },
-  { id: "g_int_partner", projectId: "prj_int", name: "Partnerzuwendungen", costCenterIds: ["cc_6000"] },
+  {
+    id: "g_bib_kita",
+    projectId: "prj_bib",
+    name: "Kita-Ausbau Süd",
+    costCenterIds: ["cc_1001", "cc_1002"],
+  },
+  {
+    id: "g_bib_sprach",
+    projectId: "prj_bib",
+    name: "Sprachförderung",
+    costCenterIds: ["cc_2001", "cc_1002"],
+  },
+  {
+    id: "g_bib_travel",
+    projectId: "prj_bib",
+    name: "Reise & Verpflegung",
+    costCenterIds: ["cc_3100", "cc_3200"],
+  },
+  {
+    id: "g_int_partner",
+    projectId: "prj_int",
+    name: "Partnerzuwendungen",
+    costCenterIds: ["cc_6000"],
+  },
   { id: "g_int_ops", projectId: "prj_int", name: "Betrieb", costCenterIds: ["cc_5000", "cc_4100"] },
   { id: "g_str_pers", projectId: "prj_str", name: "Personal", costCenterIds: ["cc_4100"] },
   { id: "g_str_travel", projectId: "prj_str", name: "Dienstreisen", costCenterIds: ["cc_3100"] },
 ];
 
 export const budgetLines: BudgetLine[] = [
-  { id: "bl_1", projectId: "prj_bib", groupId: "g_bib_kita", allocated: 22000, warningThresholdPct: 80 },
-  { id: "bl_2", projectId: "prj_bib", groupId: "g_bib_sprach", allocated: 18000, warningThresholdPct: 80 },
-  { id: "bl_3", projectId: "prj_bib", groupId: "g_bib_travel", allocated: 10000, warningThresholdPct: 75 },
-  { id: "bl_4", projectId: "prj_int", groupId: "g_int_partner", allocated: 40000, warningThresholdPct: 80 },
-  { id: "bl_5", projectId: "prj_int", groupId: "g_int_ops", allocated: 25000, warningThresholdPct: 80 },
-  { id: "bl_6", projectId: "prj_str", groupId: "g_str_pers", allocated: 60000, warningThresholdPct: 85 },
-  { id: "bl_7", projectId: "prj_str", groupId: "g_str_travel", allocated: 8000, warningThresholdPct: 80 },
+  {
+    id: "bl_1",
+    projectId: "prj_bib",
+    groupId: "g_bib_kita",
+    allocated: 22000,
+    warningThresholdPct: 80,
+  },
+  {
+    id: "bl_2",
+    projectId: "prj_bib",
+    groupId: "g_bib_sprach",
+    allocated: 18000,
+    warningThresholdPct: 80,
+  },
+  {
+    id: "bl_3",
+    projectId: "prj_bib",
+    groupId: "g_bib_travel",
+    allocated: 10000,
+    warningThresholdPct: 75,
+  },
+  {
+    id: "bl_4",
+    projectId: "prj_int",
+    groupId: "g_int_partner",
+    allocated: 40000,
+    warningThresholdPct: 80,
+  },
+  {
+    id: "bl_5",
+    projectId: "prj_int",
+    groupId: "g_int_ops",
+    allocated: 25000,
+    warningThresholdPct: 80,
+  },
+  {
+    id: "bl_6",
+    projectId: "prj_str",
+    groupId: "g_str_pers",
+    allocated: 60000,
+    warningThresholdPct: 85,
+  },
+  {
+    id: "bl_7",
+    projectId: "prj_str",
+    groupId: "g_str_travel",
+    allocated: 8000,
+    warningThresholdPct: 80,
+  },
 ];
 
 export const expenses: Expense[] = [
@@ -243,7 +360,13 @@ export const expenses: Expense[] = [
     status: "finance_approval",
     createdAt: "2024-10-12T09:12:00Z",
     logs: [
-      { id: "l1", actorUserId: "u_pm", action: "submitted", at: "2024-10-12T09:12:00Z", note: "Verpflegung für den Workshop am 10.10." },
+      {
+        id: "l1",
+        actorUserId: "u_pm",
+        action: "submitted",
+        at: "2024-10-12T09:12:00Z",
+        note: "Verpflegung für den Workshop am 10.10.",
+      },
     ],
   },
   {
@@ -282,8 +405,20 @@ export const expenses: Expense[] = [
     createdAt: "2024-10-05T14:20:00Z",
     logs: [
       { id: "l3a", actorUserId: "u_pm", action: "submitted", at: "2024-10-05T14:20:00Z" },
-      { id: "l3b", actorUserId: "u_fin", action: "approved", at: "2024-10-06T10:00:00Z", note: "Sachlich und rechnerisch geprüft." },
-      { id: "l3c", actorUserId: "u_fin", action: "escalated_ceo", at: "2024-10-06T10:00:05Z", note: "Betrag über der konfigurierten Freigabegrenze." },
+      {
+        id: "l3b",
+        actorUserId: "u_fin",
+        action: "approved",
+        at: "2024-10-06T10:00:00Z",
+        note: "Sachlich und rechnerisch geprüft.",
+      },
+      {
+        id: "l3c",
+        actorUserId: "u_fin",
+        action: "escalated_ceo",
+        at: "2024-10-06T10:00:05Z",
+        note: "Betrag über der konfigurierten Freigabegrenze.",
+      },
     ],
   },
   {
@@ -328,10 +463,28 @@ export const expenses: Expense[] = [
     status: "submitted_unverified",
     createdAt: "2024-09-28T10:00:00Z",
     logs: [
-      { id: "l5a", actorUserId: "u_pm", action: "submitted", at: "2024-09-28T10:00:00Z", note: "Mittelabruf Q4 gemäß Kooperationsvertrag." },
+      {
+        id: "l5a",
+        actorUserId: "u_pm",
+        action: "submitted",
+        at: "2024-09-28T10:00:00Z",
+        note: "Mittelabruf Q4 gemäß Kooperationsvertrag.",
+      },
       { id: "l5b", actorUserId: "u_fin", action: "approved", at: "2024-09-28T13:40:00Z" },
-      { id: "l5c", actorUserId: "u_acc", action: "marked_paid", at: "2024-09-30T08:15:00Z", note: "Überweisung ausgeführt." },
-      { id: "l5d", actorUserId: "u_acc", action: "documents_received", at: "2024-10-14T09:05:00Z", note: "Belegmappe des Partners eingegangen." },
+      {
+        id: "l5c",
+        actorUserId: "u_acc",
+        action: "marked_paid",
+        at: "2024-09-30T08:15:00Z",
+        note: "Überweisung ausgeführt.",
+      },
+      {
+        id: "l5d",
+        actorUserId: "u_acc",
+        action: "documents_received",
+        at: "2024-10-14T09:05:00Z",
+        note: "Belegmappe des Partners eingegangen.",
+      },
     ],
   },
   {
@@ -374,8 +527,20 @@ export const expenses: Expense[] = [
     logs: [
       { id: "l6a", actorUserId: "u_pm", action: "submitted", at: "2024-09-20T09:00:00Z" },
       { id: "l6b", actorUserId: "u_fin", action: "approved", at: "2024-09-21T10:00:00Z" },
-      { id: "l6c", actorUserId: "u_fin", action: "escalated_ceo", at: "2024-09-21T10:00:04Z", note: "Betrag über der konfigurierten Freigabegrenze." },
-      { id: "l6d", actorUserId: "u_ceo", action: "approved", at: "2024-09-22T11:00:00Z", note: "Freigabe erteilt." },
+      {
+        id: "l6c",
+        actorUserId: "u_fin",
+        action: "escalated_ceo",
+        at: "2024-09-21T10:00:04Z",
+        note: "Betrag über der konfigurierten Freigabegrenze.",
+      },
+      {
+        id: "l6d",
+        actorUserId: "u_ceo",
+        action: "approved",
+        at: "2024-09-22T11:00:00Z",
+        note: "Freigabe erteilt.",
+      },
     ],
   },
   {
@@ -406,20 +571,90 @@ export const expenses: Expense[] = [
     logs: [
       { id: "l8a", actorUserId: "u_pm", action: "submitted", at: "2024-09-02T08:30:00Z" },
       { id: "l8b", actorUserId: "u_fin", action: "approved", at: "2024-09-03T09:10:00Z" },
-      { id: "l8c", actorUserId: "u_acc", action: "marked_paid", at: "2024-09-05T13:45:00Z", note: "Zahllauf KW 36, KSK-pflichtig gekennzeichnet." },
+      {
+        id: "l8c",
+        actorUserId: "u_acc",
+        action: "marked_paid",
+        at: "2024-09-05T13:45:00Z",
+        note: "Zahllauf KW 36, KSK-pflichtig gekennzeichnet.",
+      },
     ],
   },
 ];
 
 export const auditLog: AuditLogEntry[] = [
-  { id: "a1", at: "2024-10-11T08:00:00Z", actorUserId: "u_admin", table: "projects", recordId: "prj_bib", action: "update", summary: "Projektende von 30.11.2024 auf 31.12.2024 verlängert" },
-  { id: "a2", at: "2024-10-10T14:30:00Z", actorUserId: "u_admin", table: "cost_center_groups", recordId: "g_bib_travel", action: "insert", summary: "Neue Gruppe „Reise & Verpflegung“ im Projekt BIB-24 angelegt" },
-  { id: "a3", at: "2024-10-09T16:12:00Z", actorUserId: "u_admin", table: "users", recordId: "u_pm", action: "update", summary: "Rolle von Finanzleitung auf Projektleitung geändert" },
-  { id: "a4", at: "2024-10-08T09:00:00Z", actorUserId: "u_admin", table: "budget_lines", recordId: "bl_3", action: "update", summary: "Zugewiesenes Budget von 8.000,00 € auf 10.000,00 € erhöht" },
-  { id: "a5", at: "2024-10-07T11:20:00Z", actorUserId: "u_admin", table: "cost_center_groups", recordId: "g_int_ops", action: "update", summary: "Kostenstelle 4100 Personalkosten der Gruppe „Betrieb“ zugeordnet" },
-  { id: "a6", at: "2024-10-06T15:05:00Z", actorUserId: "u_admin", table: "app_settings", recordId: "ceo_approval_threshold_eur", action: "update", summary: "CEO-Freigabegrenze von 500,00 € auf 1.000,00 € gesetzt" },
-  { id: "a7", at: "2024-10-05T11:00:00Z", actorUserId: "u_admin", table: "partners", recordId: "p_lernhaus", action: "insert", summary: "Neuer Partner „Lernhaus e.V.“ angelegt" },
-  { id: "a8", at: "2024-10-03T10:12:00Z", actorUserId: "u_admin", table: "users", recordId: "u_acc", action: "update", summary: "Zugang aktiviert (active: false → true)" },
+  {
+    id: "a1",
+    at: "2024-10-11T08:00:00Z",
+    actorUserId: "u_admin",
+    table: "projects",
+    recordId: "prj_bib",
+    action: "update",
+    summary: "Projektende von 30.11.2024 auf 31.12.2024 verlängert",
+  },
+  {
+    id: "a2",
+    at: "2024-10-10T14:30:00Z",
+    actorUserId: "u_admin",
+    table: "cost_center_groups",
+    recordId: "g_bib_travel",
+    action: "insert",
+    summary: "Neue Gruppe „Reise & Verpflegung“ im Projekt BIB-24 angelegt",
+  },
+  {
+    id: "a3",
+    at: "2024-10-09T16:12:00Z",
+    actorUserId: "u_admin",
+    table: "users",
+    recordId: "u_pm",
+    action: "update",
+    summary: "Rolle von Finanzleitung auf Projektleitung geändert",
+  },
+  {
+    id: "a4",
+    at: "2024-10-08T09:00:00Z",
+    actorUserId: "u_admin",
+    table: "budget_lines",
+    recordId: "bl_3",
+    action: "update",
+    summary: "Zugewiesenes Budget von 8.000,00 € auf 10.000,00 € erhöht",
+  },
+  {
+    id: "a5",
+    at: "2024-10-07T11:20:00Z",
+    actorUserId: "u_admin",
+    table: "cost_center_groups",
+    recordId: "g_int_ops",
+    action: "update",
+    summary: "Kostenstelle 4100 Personalkosten der Gruppe „Betrieb“ zugeordnet",
+  },
+  {
+    id: "a6",
+    at: "2024-10-06T15:05:00Z",
+    actorUserId: "u_admin",
+    table: "app_settings",
+    recordId: "ceo_approval_threshold_eur",
+    action: "update",
+    summary: "CEO-Freigabegrenze von 500,00 € auf 1.000,00 € gesetzt",
+  },
+  {
+    id: "a7",
+    at: "2024-10-05T11:00:00Z",
+    actorUserId: "u_admin",
+    table: "partners",
+    recordId: "p_lernhaus",
+    action: "insert",
+    summary: "Neuer Partner „Lernhaus e.V.“ angelegt",
+  },
+  {
+    id: "a8",
+    at: "2024-10-03T10:12:00Z",
+    actorUserId: "u_admin",
+    table: "users",
+    recordId: "u_acc",
+    action: "update",
+    summary: "Zugang aktiviert (active: false → true)",
+  },
 ];
 
 /**
@@ -427,7 +662,11 @@ export const auditLog: AuditLogEntry[] = [
  * Tabelle `app_settings` — im Frontend werden sie nur gelesen, nie berechnet.
  */
 export const settings = [
-  { key: "ceo_approval_threshold_eur", value: 1000, label: "Freigabegrenze für Eskalation an die Geschäftsführung (EUR)" },
+  {
+    key: "ceo_approval_threshold_eur",
+    value: 1000,
+    label: "Freigabegrenze für Eskalation an die Geschäftsführung (EUR)",
+  },
   { key: "warning_threshold_pct", value: 80, label: "Standard-Warnschwelle Budgetauslastung (%)" },
   { key: "advance_requires_ceo_approval", value: false, label: "Vorschuss benötigt CEO-Freigabe" },
   { key: "notify_slack_channel", value: "#finance", label: "Benachrichtigungs-Kanal (RocketChat)" },
@@ -462,7 +701,13 @@ export function fmtDate(iso: string): string {
 
 export function fmtDateTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function getUser(id: string): User | undefined {
@@ -500,7 +745,11 @@ export function budgetForGroup(groupId: string) {
 }
 
 /** Ist (paid + awaiting_payment) and Obligo (in-approval pipeline) per group. */
-export function budgetStatusForGroup(groupId: string): { soll: number; ist: number; obligo: number } {
+export function budgetStatusForGroup(groupId: string): {
+  soll: number;
+  ist: number;
+  obligo: number;
+} {
   const budget = budgetForGroup(groupId);
   const soll = budget?.allocated ?? 0;
   let ist = 0;
@@ -549,26 +798,42 @@ export function needsActionFor(user: User): Expense[] {
 
 export function statusLabel(s: ExpenseStatus): string {
   switch (s) {
-    case "submitted_pending": return "Eingereicht";
-    case "finance_approval": return "Finanzprüfung";
-    case "ceo_approval": return "CEO-Freigabe";
-    case "accounting_approval": return "Buchhaltungsprüfung";
-    case "awaiting_payment": return "Zahlung ausstehend";
-    case "paid": return "Bezahlt";
-    case "needs_changes": return "Korrektur nötig";
-    case "rejected": return "Abgelehnt";
-    case "submitted_unverified": return "Abrechnung offen";
+    case "submitted_pending":
+      return "Eingereicht";
+    case "finance_approval":
+      return "Finanzprüfung";
+    case "ceo_approval":
+      return "CEO-Freigabe";
+    case "accounting_approval":
+      return "Buchhaltungsprüfung";
+    case "awaiting_payment":
+      return "Zahlung ausstehend";
+    case "paid":
+      return "Bezahlt";
+    case "needs_changes":
+      return "Korrektur nötig";
+    case "rejected":
+      return "Abgelehnt";
+    case "submitted_unverified":
+      return "Abrechnung offen";
   }
 }
 
-export function statusTone(s: ExpenseStatus): "neutral" | "warning" | "info" | "success" | "danger" {
+export function statusTone(
+  s: ExpenseStatus,
+): "neutral" | "warning" | "info" | "success" | "danger" {
   switch (s) {
-    case "paid": return "success";
-    case "awaiting_payment": return "info";
+    case "paid":
+      return "success";
+    case "awaiting_payment":
+      return "info";
     case "needs_changes":
-    case "rejected": return "danger";
-    case "submitted_unverified": return "warning";
-    default: return "neutral";
+    case "rejected":
+      return "danger";
+    case "submitted_unverified":
+      return "warning";
+    default:
+      return "neutral";
   }
 }
 
@@ -580,55 +845,84 @@ export function expenseTypeLabel(t: ExpenseType): string {
 
 export function receiptStatusLabel(s: ReceiptStatus): string {
   switch (s) {
-    case "attached": return "Beleg angehängt";
-    case "missing": return "Beleg fehlt";
-    case "not_applicable": return "Beleg nicht erforderlich";
+    case "attached":
+      return "Beleg angehängt";
+    case "missing":
+      return "Beleg fehlt";
+    case "not_applicable":
+      return "Beleg nicht erforderlich";
   }
 }
 
-export function receiptStatusTone(s: ReceiptStatus): "neutral" | "warning" | "info" | "success" | "danger" {
+export function receiptStatusTone(
+  s: ReceiptStatus,
+): "neutral" | "warning" | "info" | "success" | "danger" {
   switch (s) {
-    case "attached": return "success";
-    case "missing": return "danger";
-    case "not_applicable": return "neutral";
+    case "attached":
+      return "success";
+    case "missing":
+      return "danger";
+    case "not_applicable":
+      return "neutral";
   }
 }
 
 export function advanceStageLabel(s: AdvanceStage | undefined): string {
   switch (s) {
-    case "documents_received": return "Unterlagen eingegangen";
-    case "reconciled": return "Abgerechnet";
-    default: return "Platzhalter";
+    case "documents_received":
+      return "Unterlagen eingegangen";
+    case "reconciled":
+      return "Abgerechnet";
+    default:
+      return "Platzhalter";
   }
 }
 
-export function advanceStageTone(s: AdvanceStage | undefined): "neutral" | "warning" | "info" | "success" | "danger" {
+export function advanceStageTone(
+  s: AdvanceStage | undefined,
+): "neutral" | "warning" | "info" | "success" | "danger" {
   switch (s) {
-    case "documents_received": return "info";
-    case "reconciled": return "success";
-    default: return "warning";
+    case "documents_received":
+      return "info";
+    case "reconciled":
+      return "success";
+    default:
+      return "warning";
   }
 }
 
 export function approvalActionLabel(a: ApprovalAction): string {
   switch (a) {
-    case "submitted": return "Eingereicht";
-    case "approved": return "Freigegeben";
-    case "rejected": return "Abgelehnt";
-    case "requested_changes": return "Korrektur angefordert";
-    case "resubmitted": return "Erneut eingereicht";
-    case "reconciled": return "Abgerechnet";
-    case "undo_approval": return "Freigabe zurückgezogen";
-    case "documents_received": return "Unterlagen eingegangen";
-    case "marked_paid": return "Als bezahlt markiert";
-    case "reassigned": return "Umgewidmet";
-    case "escalated_ceo": return "An Geschäftsführung eskaliert";
+    case "submitted":
+      return "Eingereicht";
+    case "approved":
+      return "Freigegeben";
+    case "rejected":
+      return "Abgelehnt";
+    case "requested_changes":
+      return "Korrektur angefordert";
+    case "resubmitted":
+      return "Erneut eingereicht";
+    case "reconciled":
+      return "Abgerechnet";
+    case "undo_approval":
+      return "Freigabe zurückgezogen";
+    case "documents_received":
+      return "Unterlagen eingegangen";
+    case "marked_paid":
+      return "Als bezahlt markiert";
+    case "reassigned":
+      return "Umgewidmet";
+    case "escalated_ceo":
+      return "An Geschäftsführung eskaliert";
   }
 }
 
 /** Offene Partner-Vorschüsse, die noch abgerechnet werden müssen. */
 export function openAdvances(): Expense[] {
-  return expenses.filter((e) => e.type === "partner_advance" && e.status === "submitted_unverified");
+  return expenses.filter(
+    (e) => e.type === "partner_advance" && e.status === "submitted_unverified",
+  );
 }
 
 export function expensesForGroup(groupId: string): Expense[] {

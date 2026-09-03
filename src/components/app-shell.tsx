@@ -1,4 +1,7 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCurrentUser } from "@/lib/role-context";
 import { users, needsActionFor, type Role } from "@/lib/mock-data";
@@ -42,7 +45,7 @@ const roleLabels: Record<Role, string> = {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, setUserId } = useCurrentUser();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathname = usePathname();
   const pending = needsActionFor(user);
 
   const isActive = (item: NavItem) =>
@@ -68,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             return (
               <Link
                 key={item.to}
-                to={item.to}
+                href={item.to}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                   active
@@ -98,7 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 return (
                   <Link
                     key={item.to}
-                    to={item.to}
+                    href={item.to}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                       active
@@ -180,7 +183,9 @@ export function PageHeader({
         <h1 className="font-heading text-2xl font-semibold text-foreground tracking-tight text-balance">
           {title}
         </h1>
-        {description && <p className="text-muted-foreground text-sm mt-1 max-w-2xl">{description}</p>}
+        {description && (
+          <p className="text-muted-foreground text-sm mt-1 max-w-2xl">{description}</p>
+        )}
       </div>
       {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
     </header>
@@ -206,7 +211,12 @@ export function StatusPill({
     danger: "bg-destructive/10 text-destructive",
   }[tone];
   return (
-    <Badge className={cn("rounded-full font-semibold uppercase tracking-wider text-[10px] px-2 py-0.5 border-0", toneClass)}>
+    <Badge
+      className={cn(
+        "rounded-full font-semibold uppercase tracking-wider text-[10px] px-2 py-0.5 border-0",
+        toneClass,
+      )}
+    >
       {children}
     </Badge>
   );

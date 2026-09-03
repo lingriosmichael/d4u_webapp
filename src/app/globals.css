@@ -1,5 +1,5 @@
 @import "tailwindcss" source(none);
-@source "../src";
+@source "..";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -10,9 +10,9 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
-  --font-heading: "Sora", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-heading-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-body-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-body-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
   --color-navy-900: var(--navy-900);
@@ -152,7 +152,12 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-heading);
     letter-spacing: -0.01em;
   }

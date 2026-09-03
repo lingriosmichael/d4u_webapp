@@ -1,9 +1,9 @@
 // Backend call stubs.
 //
 // Every write in this frontend (Freigaben, Zahlungen, Abrechnungen, Admin-Edits)
-// goes through `callBackend`. Heute ist das ein Platzhalter — später wird hier
-// der echte n8n-Webhook bzw. Supabase-RPC aufgerufen. Der Client mutiert
-// bewusst keinen Zustand selbst und berechnet keine Finanzkennzahlen.
+// goes through `callBackend`. Today this is a placeholder — once the backend API
+// exists, this resolves to a real fetch() against it. The client deliberately
+// never mutates state itself and never computes financial figures.
 
 export type BackendEndpoint =
   | "expenses.approve"
@@ -35,7 +35,6 @@ export async function callBackend(
   endpoint: BackendEndpoint,
   payload: Record<string, unknown>,
 ): Promise<BackendResult> {
-  // eslint-disable-next-line no-console
   console.info("[backend stub]", endpoint, payload);
   await new Promise((r) => setTimeout(r, 350));
   return { ok: true, endpoint };
