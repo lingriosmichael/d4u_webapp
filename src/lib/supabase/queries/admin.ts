@@ -72,6 +72,8 @@ export interface AdminAuditLogEntry {
   actorName: string | null;
   table: string;
   recordId: string;
+  // Derived, not stored — see getAdminAuditLog()'s comment. admin_audit_log
+  // has no `action` column; this is inferred from change_summary's shape.
   action: "insert" | "update" | "delete";
   summary: string;
 }
@@ -214,17 +216,52 @@ export async function getAdminSettings(): Promise<AdminSetting[]> {
   return data ?? [];
 }
 
+// admin_audit_log is populated by a database trigger, not application code
+// (verified 2026-09-03 — see d4u_backend/src/lib/audit-log.ts's comment for
+// the full story). Its real columns are id, actor_id, table_name,
+// record_id, change_summary (jsonb: `{new}` for an insert, `{old, new}`
+// for an update, presumably `{old}` for a delete — not yet observed), and
+// created_at. There is no `action` or `summary` column — both are derived
+// here, not stored.
+type ChangeSummary = { old?: Record<string, unknown>; new?: Record<string, unknown> };
+
+function deriveAction(cs: ChangeSummary): "insert" | "update" | "delete" {
+  if (cs.old && cs.new) return "update";
+  if (cs.new) return "insert";
+  return "delete";
+}
+
+function summarize(cs: ChangeSummary): string {
+  if (cs.old && cs.new) {
+    const changed = Object.keys(cs.new).filter(
+      (k) => JSON.stringify(cs.new![k]) !== JSON.stringify(cs.old![k]),
+    );
+    if (changed.length === 0) return "Keine erkennbaren Feldänderungen";
+    return changed.map((k) => `${k}: ${fmtValue(cs.old![k])} → ${fmtValue(cs.new![k])}`).join(", ");
+  }
+  const row = cs.new ?? cs.old ?? {};
+  return Object.entries(row)
+    .filter(([k]) => !["id", "created_at", "updated_at"].includes(k))
+    .map(([k, v]) => `${k}: ${fmtValue(v)}`)
+    .join(", ");
+}
+
+function fmtValue(v: unknown): string {
+  if (v === null || v === undefined) return "—";
+  return String(v);
+}
+
 export async function getAdminAuditLog(): Promise<AdminAuditLogEntry[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("admin_audit_log")
-    .select("id, actor_id, table_name, record_id, action, summary, created_at")
+    .select("id, actor_id, table_name, record_id, change_summary, created_at")
     .order("created_at", { ascending: false })
     .limit(200);
   const rows = data ?? [];
   if (rows.length === 0) return [];
 
-  const actorIds = [...new Set(rows.map((r) => r.actor_id))];
+  const actorIds = [...new Set(rows.map((r) => r.actor_id).filter(Boolean))];
   const { data: actors } = actorIds.length
     ? await supabase.from("users").select("id, first_name, last_name").in("id", actorIds)
     : { data: [] as { id: string; first_name: string; last_name: string }[] };
@@ -232,13 +269,16 @@ export async function getAdminAuditLog(): Promise<AdminAuditLogEntry[]> {
     (actors ?? []).map((a) => [a.id, `${a.first_name} ${a.last_name}`.trim()]),
   );
 
-  return rows.map((r) => ({
-    id: r.id,
-    at: r.created_at,
-    actorName: nameById.get(r.actor_id) ?? null,
-    table: r.table_name,
-    recordId: r.record_id,
-    action: r.action,
-    summary: r.summary,
-  }));
+  return rows.map((r) => {
+    const cs = (r.change_summary ?? {}) as ChangeSummary;
+    return {
+      id: r.id,
+      at: r.created_at,
+      actorName: r.actor_id ? (nameById.get(r.actor_id) ?? null) : null,
+      table: r.table_name,
+      recordId: r.record_id,
+      action: deriveAction(cs),
+      summary: summarize(cs),
+    };
+  });
 }
