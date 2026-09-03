@@ -28,9 +28,7 @@ export function Visualization({ projectId: selectedProjectId }: { projectId?: st
   }
 
   const pendingCount = expenses.filter((e) =>
-    ["finance_approval", "ceo_approval", "accounting_approval", "submitted_pending"].includes(
-      e.status,
-    ),
+    ["finance_approval", "ceo_approval", "accounting_approval", "submitted"].includes(e.status),
   ).length;
   const openAdvances = expenses.filter((e) => e.status === "submitted_unverified").length;
 

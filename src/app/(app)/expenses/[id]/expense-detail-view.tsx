@@ -159,7 +159,7 @@ function receiptLabel(s: ExpenseDetail["receiptStatus"]) {
       return "Angehängt";
     case "missing":
       return "Fehlt noch";
-    case "not_applicable":
+    case "not_required":
       return "Nicht erforderlich";
   }
 }

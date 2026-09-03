@@ -8,20 +8,30 @@
 
 export type Role = "project_manager" | "finance_manager" | "accounting" | "ceo" | "admin";
 
+// Verified directly against the live expenses_status_check constraint
+// (2026-09-03, pg_get_constraintdef — see d4u_backend/documentation/
+// OPEN_DECISIONS.md). Two values this file previously guessed
+// ("submitted_pending", "rejected") don't actually exist in the schema;
+// "submitted" and "draft" do. Nothing in this fixture currently uses
+// "draft" (every mock expense starts further along, same as the real
+// create-expense route never persists a bare "submitted"/"draft" row).
 export type ExpenseStatus =
-  | "submitted_pending" // waiting on finance
+  | "draft"
+  | "submitted"
   | "finance_approval"
   | "ceo_approval"
   | "accounting_approval"
+  | "needs_changes"
   | "awaiting_payment"
   | "paid"
-  | "needs_changes"
-  | "rejected"
-  | "submitted_unverified"; // partner advances
+  | "submitted_unverified" // partner advances
+  | "reconciled";
 
 export type ExpenseType = "standard" | "partner_advance";
 
-export type ReceiptStatus = "missing" | "attached" | "not_applicable";
+// "not_required" per the live expenses_receipt_status_check constraint —
+// not "not_applicable", which this file used until verified otherwise.
+export type ReceiptStatus = "missing" | "attached" | "not_required";
 
 export interface User {
   id: string;
@@ -37,7 +47,9 @@ export interface Project {
   code: string;
   name: string;
   fundingProgram: string;
-  status: "active" | "closed";
+  // Verified against the live projects_status_check constraint
+  // (2026-09-03) — "on_hold" exists too, unused by any current fixture row.
+  status: "active" | "closed" | "on_hold";
   leadUserId: string;
   startDate: string;
   endDate: string;
@@ -456,7 +468,7 @@ export const expenses: Expense[] = [
     amount: 5000.0,
     description: "Vorschuss Lernhaus Q4",
     partnerId: "p_lernhaus",
-    receiptStatus: "not_applicable",
+    receiptStatus: "not_required",
     advanceStage: "documents_received",
     submittedByUserId: "u_pm",
     assignedApproverUserId: "u_acc",
@@ -496,7 +508,7 @@ export const expenses: Expense[] = [
     amount: 3200.0,
     description: "Vorschuss Kulturfonds Q4",
     partnerId: "p_kulturfonds",
-    receiptStatus: "not_applicable",
+    receiptStatus: "not_required",
     advanceStage: "placeholder",
     submittedByUserId: "u_pm",
     assignedApproverUserId: "u_acc",
@@ -762,7 +774,7 @@ export function budgetStatusForGroup(groupId: string): {
       e.status === "ceo_approval" ||
       e.status === "accounting_approval" ||
       e.status === "submitted_unverified" ||
-      e.status === "submitted_pending"
+      e.status === "submitted"
     ) {
       obligo += e.amount;
     }
@@ -798,7 +810,9 @@ export function needsActionFor(user: User): Expense[] {
 
 export function statusLabel(s: ExpenseStatus): string {
   switch (s) {
-    case "submitted_pending":
+    case "draft":
+      return "Entwurf";
+    case "submitted":
       return "Eingereicht";
     case "finance_approval":
       return "Finanzprüfung";
@@ -812,10 +826,10 @@ export function statusLabel(s: ExpenseStatus): string {
       return "Bezahlt";
     case "needs_changes":
       return "Korrektur nötig";
-    case "rejected":
-      return "Abgelehnt";
     case "submitted_unverified":
       return "Abrechnung offen";
+    case "reconciled":
+      return "Abgerechnet";
   }
 }
 
@@ -824,11 +838,11 @@ export function statusTone(
 ): "neutral" | "warning" | "info" | "success" | "danger" {
   switch (s) {
     case "paid":
+    case "reconciled":
       return "success";
     case "awaiting_payment":
       return "info";
     case "needs_changes":
-    case "rejected":
       return "danger";
     case "submitted_unverified":
       return "warning";
@@ -849,7 +863,7 @@ export function receiptStatusLabel(s: ReceiptStatus): string {
       return "Beleg angehängt";
     case "missing":
       return "Beleg fehlt";
-    case "not_applicable":
+    case "not_required":
       return "Beleg nicht erforderlich";
   }
 }
@@ -862,7 +876,7 @@ export function receiptStatusTone(
       return "success";
     case "missing":
       return "danger";
-    case "not_applicable":
+    case "not_required":
       return "neutral";
   }
 }
