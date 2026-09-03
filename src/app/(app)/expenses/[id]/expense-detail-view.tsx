@@ -1,25 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PageContainer, PageHeader, StatusPill } from "@/components/app-shell";
 import { useCurrentUser } from "@/lib/role-context";
-import {
-  getExpense,
-  getProject,
-  getUser,
-  getPartner,
-  getCostCenter,
-  getGroup,
-  fmtEUR,
-  fmtDate,
-  fmtDateTime,
-  statusLabel,
-  statusTone,
-  groupsForProject,
-  type Expense,
-  type ReconciliationLine,
-} from "@/lib/mock-data";
+import { fmtEUR, fmtDate, fmtDateTime, statusLabel, statusTone } from "@/lib/mock-data";
+import type { ExpenseDetail, ReconciledLine } from "@/lib/supabase/queries/expense-detail";
+import { callBackend, BackendError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,18 +34,20 @@ import { cn } from "@/lib/utils";
 
 type Mode = "review" | "edit" | "reconcile" | "readonly";
 
-export function ExpenseDetailView({ expenseId }: { expenseId: string }) {
-  const expense = getExpense(expenseId)!;
+// Converted from lib/mock-data.ts to the real Supabase read (server-fetched
+// by page.tsx, passed as a prop) + real backend writes (via callBackend) —
+// the last of the four main screens to make this switch. Every action
+// below calls the actual d4u_backend route and reflects its real response;
+// router.refresh() re-fetches this page's server data on success so the UI
+// shows the backend's authoritative new state, not an optimistic guess.
+export function ExpenseDetailView({ expense }: { expense: ExpenseDetail }) {
   const { user } = useCurrentUser();
 
   const mode: Mode = useMemo(() => {
-    // Reconciliation
     if (user.role === "accounting" && expense.status === "submitted_unverified") return "reconcile";
-    // Edit & Resubmit
-    if (expense.submittedByUserId === user.id && expense.status === "needs_changes") return "edit";
-    // Review — assigned approver, in an approval-chain status
+    if (expense.submittedBy === user.id && expense.status === "needs_changes") return "edit";
     if (
-      expense.assignedApproverUserId === user.id &&
+      expense.assignedApprover === user.id &&
       ["finance_approval", "ceo_approval", "accounting_approval"].includes(expense.status)
     ) {
       return "review";
@@ -65,15 +55,10 @@ export function ExpenseDetailView({ expenseId }: { expenseId: string }) {
     return "readonly";
   }, [user, expense]);
 
-  const project = getProject(expense.projectId);
-  const group = getGroup(expense.groupId);
-  const costCenter = getCostCenter(expense.costCenterId);
-  const submitter = getUser(expense.submittedByUserId);
-  const partner = getPartner(expense.partnerId);
-
-  const lastRejection = [...expense.logs]
-    .reverse()
-    .find((l) => l.action === "requested_changes" || l.action === "rejected");
+  // No separate "rejected" log action exists in the real schema (verified
+  // against the live approval_logs_action_check constraint) — only
+  // requested_changes, which is what "Korrektur anfordern" always writes.
+  const lastRejection = [...expense.logs].reverse().find((l) => l.action === "requested_changes");
 
   return (
     <PageContainer>
@@ -85,15 +70,15 @@ export function ExpenseDetailView({ expenseId }: { expenseId: string }) {
       </Link>
 
       <PageHeader
-        eyebrow={`Beleg · ${expense.id}`}
+        eyebrow={`Beleg · ${expense.id.slice(0, 8)}`}
         title={expense.description}
         description={
           <>
-            {project?.name} · {group?.name}
-            {costCenter && (
+            {expense.projectName} · {expense.groupName}
+            {expense.costCenterCode && (
               <>
                 {" "}
-                · {costCenter.code} {costCenter.name}
+                · {expense.costCenterCode} {expense.costCenterName}
               </>
             )}
           </>
@@ -111,7 +96,7 @@ export function ExpenseDetailView({ expenseId }: { expenseId: string }) {
               <div className="text-sm font-semibold text-destructive">Korrektur angefordert</div>
               <p className="text-sm mt-1 text-foreground leading-relaxed">{lastRejection.note}</p>
               <p className="text-[10px] text-muted-foreground mt-2">
-                {getUser(lastRejection.actorUserId)?.name} · {fmtDateTime(lastRejection.at)}
+                {lastRejection.actorName ?? "—"} · {fmtDateTime(lastRejection.at)}
               </p>
             </div>
           </div>
@@ -140,9 +125,9 @@ export function ExpenseDetailView({ expenseId }: { expenseId: string }) {
             <Timeline expense={expense} />
 
             <div className="mt-6 pt-6 border-t border-black/5 space-y-3 text-xs">
-              <MetaRow label="Eingereicht von" value={submitter?.name ?? "—"} />
+              <MetaRow label="Eingereicht von" value={expense.submitterName ?? "—"} />
               <MetaRow label="Datum" value={fmtDate(expense.createdAt)} />
-              {partner && <MetaRow label="Partner" value={partner.name} />}
+              {expense.partnerName && <MetaRow label="Partner" value={expense.partnerName} />}
               {expense.vendor && <MetaRow label="Lieferant" value={expense.vendor} />}
               {expense.invoiceNumber && (
                 <MetaRow
@@ -168,7 +153,7 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function receiptLabel(s: Expense["receiptStatus"]) {
+function receiptLabel(s: ExpenseDetail["receiptStatus"]) {
   switch (s) {
     case "attached":
       return "Angehängt";
@@ -179,11 +164,16 @@ function receiptLabel(s: Expense["receiptStatus"]) {
   }
 }
 
-function DetailsCard({ expense }: { expense: Expense }) {
-  const project = getProject(expense.projectId);
-  const group = getGroup(expense.groupId);
-  const costCenter = getCostCenter(expense.costCenterId);
+/** Surfaces a BackendError's message (already German, user-safe — see
+ * d4u_backend/src/lib/errors.ts) or a generic fallback for anything else
+ * (network failure, unexpected shape), per this app's rule against
+ * exposing internals in user-facing copy. */
+function backendErrorMessage(error: unknown): string {
+  if (error instanceof BackendError) return error.message;
+  return "Die Aktion konnte nicht ausgeführt werden. Bitte versuchen Sie es erneut.";
+}
 
+function DetailsCard({ expense }: { expense: ExpenseDetail }) {
   return (
     <section className="bg-card ring-1 ring-black/5 rounded-xl p-6">
       <h2 className="font-heading font-semibold text-sm mb-5">Belegdaten</h2>
@@ -194,11 +184,13 @@ function DetailsCard({ expense }: { expense: Expense }) {
             <span className="font-mono font-semibold text-base">{fmtEUR(expense.amount)}</span>
           }
         />
-        <Field label="Projekt" value={project?.name} />
-        <Field label="Kostenstellen-Gruppe" value={group?.name} />
+        <Field label="Projekt" value={expense.projectName} />
+        <Field label="Kostenstellen-Gruppe" value={expense.groupName} />
         <Field
           label="Kostenstelle"
-          value={costCenter ? `${costCenter.code} — ${costCenter.name}` : "—"}
+          value={
+            expense.costCenterCode ? `${expense.costCenterCode} — ${expense.costCenterName}` : "—"
+          }
         />
         {expense.vendor && <Field label="Lieferant" value={expense.vendor} />}
         {expense.invoiceNumber && (
@@ -212,10 +204,10 @@ function DetailsCard({ expense }: { expense: Expense }) {
         </div>
       </dl>
 
-      {expense.reconciliationLines && expense.reconciliationLines.length > 0 && (
+      {expense.reconciledLines.length > 0 && (
         <div className="mt-8 pt-6 border-t border-black/5">
           <h3 className="font-heading font-semibold text-sm mb-3">Abrechnungspositionen</h3>
-          <ReconciliationTable lines={expense.reconciliationLines} readOnly />
+          <ReconciliationTable lines={expense.reconciledLines} />
         </div>
       )}
     </section>
@@ -233,12 +225,16 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function Timeline({ expense }: { expense: Expense }) {
+// Purely internal bookkeeping markers, not user-facing events — everything
+// else in approval_logs (including reassignment_requested) is shown.
+const HIDDEN_LOG_ACTIONS = new Set(["budget_incremented"]);
+
+function Timeline({ expense }: { expense: ExpenseDetail }) {
+  const visibleLogs = expense.logs.filter((l) => !HIDDEN_LOG_ACTIONS.has(l.action));
   return (
     <ol className="space-y-4 relative before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-border">
-      {expense.logs.map((log, i) => {
-        const actor = getUser(log.actorUserId);
-        const isLast = i === expense.logs.length - 1;
+      {visibleLogs.map((log, i) => {
+        const isLast = i === visibleLogs.length - 1;
         return (
           <li key={log.id} className="relative pl-6">
             <div
@@ -249,7 +245,7 @@ function Timeline({ expense }: { expense: Expense }) {
             />
             <div className="text-xs font-semibold text-foreground">{actionLabel(log.action)}</div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              {actor?.name ?? "System"} · {fmtDateTime(log.at)}
+              {log.actorName ?? "System"} · {fmtDateTime(log.at)}
             </div>
             {log.note && (
               <p className="text-xs text-muted-foreground mt-1.5 italic leading-relaxed">
@@ -263,60 +259,96 @@ function Timeline({ expense }: { expense: Expense }) {
   );
 }
 
-function actionLabel(a: Expense["logs"][number]["action"]) {
+// Matches the live approval_logs_action_check constraint exactly (verified
+// 2026-09-03, see d4u_backend/documentation/OPEN_DECISIONS.md) — not
+// mock-data.ts's ApprovalAction fixture, whose vocabulary ("approved",
+// "rejected", "reconciled", "undo_approval", "reassigned") the real
+// constraint rejects. No log action exists for an Umwidmung *request*
+// (only its eventual execution) or for a generic "escalated" event — both
+// gaps on the backend side, not something to paper over here.
+function actionLabel(a: string): string {
   switch (a) {
     case "submitted":
       return "Eingereicht";
-    case "approved":
-      return "Freigegeben";
-    case "rejected":
-      return "Abgelehnt";
+    case "finance_approved":
+      return "Von der Finanzleitung freigegeben";
+    case "ceo_approved":
+      return "Von der Geschäftsführung freigegeben";
+    case "accounting_approved":
+      return "Von der Buchhaltung freigegeben";
     case "requested_changes":
       return "Korrektur angefordert";
     case "resubmitted":
       return "Erneut eingereicht";
-    case "reconciled":
+    case "advance_reconciled":
       return "Abgerechnet";
-    case "undo_approval":
+    case "approval_reversed":
       return "Freigabe zurückgezogen";
     case "documents_received":
       return "Unterlagen eingegangen";
     case "marked_paid":
       return "Als bezahlt markiert";
-    case "reassigned":
+    case "reassigned_budget_line":
       return "Umgewidmet";
-    case "escalated_ceo":
-      return "An Geschäftsführung eskaliert";
+    case "reminder_sent":
+      return "Erinnerung gesendet";
+    default:
+      return a;
   }
 }
 
 // --- Review actions ---------------------------------------------------------
 
-function ReviewActions({ expense }: { expense: Expense }) {
+function ReviewActions({ expense }: { expense: ExpenseDetail }) {
+  const router = useRouter();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleApprove = () => {
-    toast.success("Beleg freigegeben", { description: `${expense.id} wurde weitergeleitet.` });
+  const handleApprove = async () => {
+    setSubmitting(true);
+    try {
+      await callBackend("expenses.approve", { expenseId: expense.id });
+      toast.success("Beleg freigegeben", { description: `Der Beleg wurde weitergeleitet.` });
+      router.refresh();
+    } catch (error) {
+      toast.error("Freigabe fehlgeschlagen", { description: backendErrorMessage(error) });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!note.trim()) return;
-    toast.success("Korrektur angefordert", {
-      description: "Die einreichende Person wurde informiert.",
-    });
-    setRejectOpen(false);
-    setNote("");
+    setSubmitting(true);
+    try {
+      await callBackend("expenses.requestChanges", { expenseId: expense.id, note });
+      toast.success("Korrektur angefordert", {
+        description: "Die einreichende Person wurde informiert.",
+      });
+      setRejectOpen(false);
+      setNote("");
+      router.refresh();
+    } catch (error) {
+      toast.error("Konnte Korrektur nicht anfordern", { description: backendErrorMessage(error) });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <section className="bg-card ring-1 ring-black/5 rounded-xl p-6">
       <h2 className="font-heading font-semibold text-sm mb-4">Ihre Entscheidung</h2>
       <div className="flex flex-wrap gap-3">
-        <Button onClick={handleApprove} className="min-w-32">
+        <Button onClick={handleApprove} disabled={submitting} className="min-w-32">
           <CheckCircle2 className="size-4" /> Freigeben
         </Button>
-        <Button variant="outline" onClick={() => setRejectOpen(true)} className="min-w-32">
+        <Button
+          variant="outline"
+          onClick={() => setRejectOpen(true)}
+          disabled={submitting}
+          className="min-w-32"
+        >
           Korrektur anfordern
         </Button>
       </div>
@@ -340,7 +372,7 @@ function ReviewActions({ expense }: { expense: Expense }) {
             <Button variant="ghost" onClick={() => setRejectOpen(false)}>
               Abbrechen
             </Button>
-            <Button onClick={handleReject} disabled={!note.trim()}>
+            <Button onClick={handleReject} disabled={!note.trim() || submitting}>
               Korrektur anfordern
             </Button>
           </DialogFooter>
@@ -352,9 +384,28 @@ function ReviewActions({ expense }: { expense: Expense }) {
 
 // --- Undo approval (CEO only, awaiting_payment) -----------------------------
 
-function UndoApprovalCard({ expense }: { expense: Expense }) {
+function UndoApprovalCard({ expense }: { expense: ExpenseDetail }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleUndo = async () => {
+    if (!reason.trim()) return;
+    setSubmitting(true);
+    try {
+      await callBackend("expenses.undoApproval", { expenseId: expense.id, reason });
+      toast.success("Freigabe zurückgezogen");
+      setOpen(false);
+      router.refresh();
+    } catch (error) {
+      toast.error("Konnte Freigabe nicht zurückziehen", {
+        description: backendErrorMessage(error),
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <section className="bg-card ring-1 ring-destructive/20 rounded-xl p-6">
@@ -377,7 +428,7 @@ function UndoApprovalCard({ expense }: { expense: Expense }) {
           <DialogHeader>
             <DialogTitle>Freigabe zurückziehen</DialogTitle>
             <DialogDescription>
-              Diese Aktion storniert die Auszahlung für {expense.id}. Bitte begründen Sie den
+              Diese Aktion storniert die Auszahlung für diesen Beleg. Bitte begründen Sie den
               Schritt.
             </DialogDescription>
           </DialogHeader>
@@ -388,11 +439,8 @@ function UndoApprovalCard({ expense }: { expense: Expense }) {
             </Button>
             <Button
               variant="destructive"
-              disabled={!reason.trim()}
-              onClick={() => {
-                toast.success("Freigabe zurückgezogen");
-                setOpen(false);
-              }}
+              disabled={!reason.trim() || submitting}
+              onClick={handleUndo}
             >
               Endgültig zurückziehen
             </Button>
@@ -405,26 +453,37 @@ function UndoApprovalCard({ expense }: { expense: Expense }) {
 
 // --- Edit & Resubmit --------------------------------------------------------
 
-function EditForm({ expense }: { expense: Expense }) {
+function EditForm({ expense }: { expense: ExpenseDetail }) {
+  const router = useRouter();
   const [amount, setAmount] = useState(String(expense.amount).replace(".", ","));
   const [description, setDescription] = useState(expense.description);
   const [vendor, setVendor] = useState(expense.vendor ?? "");
   const [invoiceNumber, setInvoiceNumber] = useState(expense.invoiceNumber ?? "");
-  const [projectId, setProjectId] = useState(expense.projectId);
-  const [groupId, setGroupId] = useState(expense.groupId);
   const [costCenterId, setCostCenterId] = useState(expense.costCenterId ?? "");
+  const [submitting, setSubmitting] = useState(false);
 
-  const groups = groupsForProject(projectId);
-  const group = groups.find((g) => g.id === groupId);
-  const groupCostCenters = group
-    ? group.costCenterIds.map((id) => getCostCenter(id)).filter(Boolean)
-    : [];
-
-  const handleResubmit = (e: React.FormEvent) => {
+  const handleResubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Beleg erneut eingereicht", {
-      description: "Der Prüfungslauf beginnt von vorn.",
-    });
+    const amountNum = parseFloat(amount.replace(",", "."));
+    setSubmitting(true);
+    try {
+      await callBackend("expenses.resubmit", {
+        expenseId: expense.id,
+        amount: isNaN(amountNum) ? undefined : amountNum,
+        description,
+        vendorName: vendor || undefined,
+        invoiceNumber: invoiceNumber || undefined,
+        costCenterId: costCenterId || undefined,
+      });
+      toast.success("Beleg erneut eingereicht", {
+        description: "Der Prüfungslauf beginnt von vorn.",
+      });
+      router.refresh();
+    } catch (error) {
+      toast.error("Konnte nicht erneut einreichen", { description: backendErrorMessage(error) });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -437,49 +496,11 @@ function EditForm({ expense }: { expense: Expense }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
           <Label className="text-xs">Projekt</Label>
-          <Select
-            value={projectId}
-            onValueChange={(v) => {
-              setProjectId(v);
-              setGroupId("");
-              setCostCenterId("");
-            }}
-          >
-            <SelectTrigger className="mt-1.5">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from(new Set([expense.projectId])).map((pid) => {
-                const p = getProject(pid);
-                return p ? (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.code} — {p.name}
-                  </SelectItem>
-                ) : null;
-              })}
-            </SelectContent>
-          </Select>
+          <Input className="mt-1.5" value={expense.projectName ?? ""} disabled />
         </div>
         <div>
           <Label className="text-xs">Kostenstellen-Gruppe</Label>
-          <Select
-            value={groupId}
-            onValueChange={(v) => {
-              setGroupId(v);
-              setCostCenterId("");
-            }}
-          >
-            <SelectTrigger className="mt-1.5">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {groups.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
-                  {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Input className="mt-1.5" value={expense.groupName ?? ""} disabled />
         </div>
       </div>
 
@@ -490,9 +511,9 @@ function EditForm({ expense }: { expense: Expense }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {groupCostCenters.map((c) => (
-              <SelectItem key={c!.id} value={c!.id}>
-                {c!.code} — {c!.name}
+            {expense.groupCostCenters.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.code} — {c.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -534,7 +555,9 @@ function EditForm({ expense }: { expense: Expense }) {
       </div>
 
       <div className="pt-4 flex justify-end">
-        <Button type="submit">Erneut einreichen</Button>
+        <Button type="submit" disabled={submitting}>
+          Erneut einreichen
+        </Button>
       </div>
     </form>
   );
@@ -542,13 +565,25 @@ function EditForm({ expense }: { expense: Expense }) {
 
 // --- Reconciliation (accounting) --------------------------------------------
 
-function ReconcileForm({ expense }: { expense: Expense }) {
-  const group = getGroup(expense.groupId)!;
-  const groupCcIds = group.costCenterIds;
-  const [lines, setLines] = useState<ReconciliationLine[]>([
+interface DraftLine {
+  id: string;
+  costCenterId: string;
+  description: string;
+  gross: number;
+  vatRate: 0 | 7 | 19;
+  net: number;
+  ksk: boolean;
+  bookingKey?: string;
+  supplier?: string;
+}
+
+function ReconcileForm({ expense }: { expense: ExpenseDetail }) {
+  const router = useRouter();
+  const groupCostCenters = expense.groupCostCenters;
+  const [lines, setLines] = useState<DraftLine[]>([
     {
       id: crypto.randomUUID(),
-      costCenterId: groupCcIds[0] ?? "",
+      costCenterId: groupCostCenters[0]?.id ?? "",
       description: "",
       gross: 0,
       vatRate: 19,
@@ -556,8 +591,9 @@ function ReconcileForm({ expense }: { expense: Expense }) {
       ksk: false,
     },
   ]);
+  const [submitting, setSubmitting] = useState(false);
 
-  const updateLine = (id: string, patch: Partial<ReconciliationLine>) => {
+  const updateLine = (id: string, patch: Partial<DraftLine>) => {
     setLines((prev) =>
       prev.map((l) => {
         if (l.id !== id) return l;
@@ -576,7 +612,7 @@ function ReconcileForm({ expense }: { expense: Expense }) {
       ...prev,
       {
         id: crypto.randomUUID(),
-        costCenterId: groupCcIds[0] ?? "",
+        costCenterId: groupCostCenters[0]?.id ?? "",
         description: "",
         gross: 0,
         vatRate: 19,
@@ -594,10 +630,31 @@ function ReconcileForm({ expense }: { expense: Expense }) {
   const diff = expense.amount - total;
   const overBudget = diff < 0;
 
-  const handleSubmit = () => {
-    toast.success("Vorschuss abgerechnet", {
-      description: `${lines.length} Positionen wurden verbucht.`,
-    });
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      await callBackend("expenses.reconcile", {
+        expenseId: expense.id,
+        lineItems: lines.map((l) => ({
+          costCenterId: l.costCenterId,
+          description: l.description,
+          grossAmount: l.gross,
+          vatRate: l.vatRate,
+          netAmount: l.net,
+          kskLiable: l.ksk,
+          bookingKey: l.bookingKey || undefined,
+          supplier: l.supplier || undefined,
+        })),
+      });
+      toast.success("Vorschuss abgerechnet", {
+        description: `${lines.length} Positionen wurden verbucht.`,
+      });
+      router.refresh();
+    } catch (error) {
+      toast.error("Abrechnung fehlgeschlagen", { description: backendErrorMessage(error) });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -626,7 +683,7 @@ function ReconcileForm({ expense }: { expense: Expense }) {
             key={line.id}
             line={line}
             index={idx}
-            groupCostCenterIds={groupCcIds}
+            groupCostCenters={groupCostCenters}
             onChange={(patch) => updateLine(line.id, patch)}
             onRemove={() => removeLine(line.id)}
             canRemove={lines.length > 1}
@@ -653,7 +710,7 @@ function ReconcileForm({ expense }: { expense: Expense }) {
           )}
           {diff === 0 && <>Betrag vollständig abgerechnet.</>}
         </p>
-        <Button onClick={handleSubmit} disabled={overBudget}>
+        <Button onClick={handleSubmit} disabled={overBudget || submitting}>
           Abrechnung bestätigen
         </Button>
       </div>
@@ -692,15 +749,15 @@ function SummaryCell({
 function ReconciliationLineCard({
   line,
   index,
-  groupCostCenterIds,
+  groupCostCenters,
   onChange,
   onRemove,
   canRemove,
 }: {
-  line: ReconciliationLine;
+  line: DraftLine;
   index: number;
-  groupCostCenterIds: string[];
-  onChange: (patch: Partial<ReconciliationLine>) => void;
+  groupCostCenters: ExpenseDetail["groupCostCenters"];
+  onChange: (patch: Partial<DraftLine>) => void;
   onRemove: () => void;
   canRemove: boolean;
 }) {
@@ -729,14 +786,11 @@ function ReconciliationLineCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {groupCostCenterIds.map((id) => {
-                const c = getCostCenter(id);
-                return c ? (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.code} — {c.name}
-                  </SelectItem>
-                ) : null;
-              })}
+              {groupCostCenters.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.code} — {c.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -821,14 +875,7 @@ function ReconciliationLineCard({
   );
 }
 
-function ReconciliationTable({
-  lines,
-  readOnly,
-}: {
-  lines: ReconciliationLine[];
-  readOnly?: boolean;
-}) {
-  void readOnly;
+function ReconciliationTable({ lines }: { lines: ReconciledLine[] }) {
   return (
     <table className="w-full text-sm">
       <thead className="text-[10px] font-heading font-semibold uppercase tracking-wider text-muted-foreground">
@@ -841,18 +888,15 @@ function ReconciliationTable({
         </tr>
       </thead>
       <tbody>
-        {lines.map((l) => {
-          const cc = getCostCenter(l.costCenterId);
-          return (
-            <tr key={l.id} className="border-t border-black/5">
-              <td className="py-2">{cc?.code ?? "—"}</td>
-              <td className="py-2">{l.description}</td>
-              <td className="py-2 text-right font-mono">{fmtEUR(l.net)}</td>
-              <td className="py-2 text-right font-mono">{l.vatRate}%</td>
-              <td className="py-2 text-right font-mono">{fmtEUR(l.gross)}</td>
-            </tr>
-          );
-        })}
+        {lines.map((l) => (
+          <tr key={l.id} className="border-t border-black/5">
+            <td className="py-2">{l.costCenterCode ?? "—"}</td>
+            <td className="py-2">{l.description}</td>
+            <td className="py-2 text-right font-mono">{fmtEUR(l.netAmount)}</td>
+            <td className="py-2 text-right font-mono">{l.vatRate}%</td>
+            <td className="py-2 text-right font-mono">{fmtEUR(l.grossAmount)}</td>
+          </tr>
+        ))}
       </tbody>
     </table>
   );
