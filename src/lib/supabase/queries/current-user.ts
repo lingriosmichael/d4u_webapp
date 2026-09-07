@@ -43,3 +43,17 @@ export async function getCurrentUserProfile(): Promise<User | null> {
     initials,
   };
 }
+
+// Auth-only concern (Supabase user_metadata, not a public.users column) —
+// kept separate from the User type above rather than widening it, since
+// that type is shared well beyond auth-gating. Set on creation by
+// POST /api/admin/users for an admin-assigned temp password; cleared by
+// the user themselves via supabase.auth.updateUser() on
+// src/app/password-aendern once they set their own password.
+export async function getMustChangePassword(): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  return authUser?.user_metadata?.must_change_password === true;
+}

@@ -15,10 +15,17 @@
   --font-sans: var(--font-body-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
-  --color-navy-900: var(--navy-900);
-  --color-navy-800: var(--navy-800);
-  --color-navy-600: var(--navy-600);
-  --color-navy-100: var(--navy-100);
+  --color-ink: var(--ink);
+  --color-stone: var(--stone);
+  --color-line: var(--line);
+  --color-shell: var(--shell);
+  --color-sand: var(--sand);
+  --color-amber: var(--amber);
+  --color-clay: var(--clay);
+  --color-ember: var(--ember);
+  --color-alarm: var(--alarm);
+  --color-threshold: var(--threshold);
+  --color-threshold-foreground: var(--threshold-foreground);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -65,77 +72,88 @@
 }
 
 :root {
+  /* Base for the radius scale — components use rounded-md, which resolves
+     to 6px (the input/small-control size). Cards use .card-shape instead. */
   --radius: 0.5rem;
 
-  /* Navy Trust palette */
-  --navy-900: oklch(0.24 0.06 265);
-  --navy-800: oklch(0.35 0.07 260);
-  --navy-600: oklch(0.55 0.09 250);
-  --navy-100: oklch(0.955 0.008 250);
+  /* D4U brand palette (brand_guidelines/D4U_brand_guidelines.png).
+     The interface is deliberately neutral-first: deep Ember marks settled
+     money, light Sand marks promised money, and Alarm is exceptional only. */
+  --ink: #231c15;
+  --stone: #796a5d;
+  --line: #e5e0dc;
+  --shell: #f4f2f0;
+  --sand: #ce9a72;
+  --amber: #d9b87a;
+  --clay: #ae6631;
+  --ember: #7a4722;
+  --alarm: #a03d2e;
+  --threshold: var(--clay);
+  --threshold-foreground: var(--ember);
 
-  --background: oklch(0.985 0.005 250);
-  --foreground: oklch(0.22 0.03 260);
+  --background: var(--shell);
+  --foreground: var(--ink);
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.03 260);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.03 260);
+  --card: #ffffff;
+  --card-foreground: var(--ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--ink);
 
-  --primary: var(--navy-900);
-  --primary-foreground: oklch(0.985 0.005 250);
-  --secondary: oklch(0.955 0.008 250);
-  --secondary-foreground: var(--navy-900);
-  --muted: oklch(0.96 0.006 250);
-  --muted-foreground: oklch(0.5 0.02 260);
-  --accent: var(--navy-100);
-  --accent-foreground: var(--navy-900);
-  --destructive: oklch(0.55 0.19 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --success: oklch(0.55 0.13 155);
-  --success-foreground: oklch(0.99 0 0);
-  --warning: oklch(0.72 0.15 65);
-  --warning-foreground: oklch(0.2 0.02 60);
-  --border: oklch(0.9 0.01 250);
-  --input: oklch(0.9 0.01 250);
-  --ring: var(--navy-600);
+  --primary: var(--ember);
+  --primary-foreground: #ffffff;
+  --secondary: var(--shell);
+  --secondary-foreground: var(--ink);
+  --muted: var(--shell);
+  --muted-foreground: var(--stone);
+  --accent: color-mix(in srgb, var(--sand) 22%, var(--shell));
+  --accent-foreground: var(--ink);
+  --destructive: var(--alarm);
+  --destructive-foreground: #ffffff;
+  --success: var(--ember);
+  --success-foreground: var(--ink);
+  --warning: var(--threshold);
+  --warning-foreground: var(--threshold-foreground);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--clay);
 
-  --chart-soll: var(--navy-800);
-  --chart-ist: var(--navy-600);
-  --chart-obligo: oklch(0.85 0.01 250);
-  --chart-1: var(--navy-800);
-  --chart-2: var(--navy-600);
-  --chart-3: oklch(0.7 0.09 220);
-  --chart-4: oklch(0.75 0.12 85);
-  --chart-5: oklch(0.6 0.15 25);
+  --chart-soll: var(--stone);
+  --chart-ist: var(--ember);
+  --chart-obligo: var(--sand);
+  --chart-1: var(--ember);
+  --chart-2: var(--sand);
+  --chart-3: var(--amber);
+  --chart-4: var(--clay);
+  --chart-5: var(--threshold);
 
-  --sidebar: var(--navy-900);
-  --sidebar-foreground: var(--navy-100);
-  --sidebar-primary: var(--navy-600);
-  --sidebar-primary-foreground: oklch(0.985 0.005 250);
-  --sidebar-accent: var(--navy-800);
-  --sidebar-accent-foreground: oklch(0.985 0.005 250);
-  --sidebar-border: color-mix(in oklab, var(--navy-100) 12%, transparent);
-  --sidebar-ring: var(--navy-600);
+  --sidebar: var(--ink);
+  --sidebar-foreground: var(--shell);
+  --sidebar-primary: var(--sand);
+  --sidebar-primary-foreground: var(--ink);
+  --sidebar-accent: color-mix(in srgb, var(--sand) 20%, transparent);
+  --sidebar-accent-foreground: var(--shell);
+  --sidebar-border: color-mix(in srgb, var(--shell) 18%, transparent);
+  --sidebar-ring: var(--sand);
 }
 
 .dark {
-  --background: oklch(0.15 0.02 260);
-  --foreground: oklch(0.96 0.005 250);
-  --card: oklch(0.2 0.03 260);
-  --card-foreground: oklch(0.96 0.005 250);
-  --popover: oklch(0.2 0.03 260);
-  --popover-foreground: oklch(0.96 0.005 250);
-  --primary: oklch(0.96 0.005 250);
-  --primary-foreground: var(--navy-900);
-  --secondary: oklch(0.28 0.04 260);
-  --secondary-foreground: oklch(0.96 0.005 250);
-  --muted: oklch(0.28 0.04 260);
-  --muted-foreground: oklch(0.7 0.03 250);
-  --accent: oklch(0.28 0.04 260);
-  --accent-foreground: oklch(0.96 0.005 250);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.6 0.04 260);
+  --background: var(--ink);
+  --foreground: var(--shell);
+  --card: #2d241d;
+  --card-foreground: var(--shell);
+  --popover: #2d241d;
+  --popover-foreground: var(--shell);
+  --primary: var(--sand);
+  --primary-foreground: var(--ink);
+  --secondary: #382d24;
+  --secondary-foreground: var(--shell);
+  --muted: #382d24;
+  --muted-foreground: var(--amber);
+  --accent: #4a3628;
+  --accent-foreground: var(--shell);
+  --border: color-mix(in srgb, var(--shell) 16%, transparent);
+  --input: color-mix(in srgb, var(--shell) 24%, transparent);
+  --ring: var(--sand);
 }
 
 @layer base {
@@ -150,6 +168,9 @@
     color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Every figure and table column uses tabular numerals so euro
+       amounts line up on the decimal — see fmtEUR(). */
+    font-variant-numeric: tabular-nums;
   }
 
   h1,
@@ -160,5 +181,30 @@
   h6 {
     font-family: var(--font-heading);
     letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  /* "One radius, two corners": cards echo the logo mark — sharp on one
+     diagonal, 26px on the other. Inputs and small controls keep --radius
+     (6px); nothing else is rounded. */
+  .card-shape {
+    border-radius: 0 26px 0 26px;
+  }
+
+  /* Cards sit flat on the canvas with a one-pixel rule. Shadow is reserved
+     for things that genuinely float: menus, dialogs, the upload drop zone. */
+  .shadow-float {
+    box-shadow:
+      0 4px 6px -1px rgb(35 28 21 / 0.08),
+      0 2px 4px -2px rgb(35 28 21 / 0.06);
+  }
+
+  /* Login preserves its expressive entry-point accent while inheriting the
+     same warm neutrals as the authenticated application. */
+  .login-scope {
+    --primary: var(--clay);
+    --primary-foreground: #ffffff;
+    --ring: var(--amber);
   }
 }

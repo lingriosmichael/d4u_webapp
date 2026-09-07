@@ -6,18 +6,37 @@
 -- what you already visually verified against the mock UI — a built-in
 -- sanity check that the read layer is wired correctly.
 --
+-- Updated 2026-09-04 for the 2026-09-05 approval-routing rewrite
+-- (d4u_backend/documentation/approval_routing.md): the two expenses that
+-- used to sit in the now-retired 'finance_approval' status are corrected
+-- to 'accounting_approval' (Finance Manager has no approval role at all
+-- under the current model), and every seeded user now gets an explicit
+-- approval_limit — the column exists live but nothing here used to set
+-- it, so every seeded user silently fell back to the DB default of 0
+-- (fail-closed: every submission escalates to CEO).
+--
+-- Recommended path for a full reset-and-reseed: run
+-- d4u_backend/scripts/reset-and-seed.mjs instead of this file by hand —
+-- it creates the Auth users, captures their real UUIDs, truncates old
+-- data, and runs the equivalent of everything below in one idempotent
+-- pass. This file is kept as the readable reference for what that script
+-- does, and as a manual fallback.
+--
 -- Plain data inserts, not a schema/security change, so pasting this
 -- directly into the Supabase SQL editor is fine for a single dev/sandbox
--- project (unlike ../../d4u_backend/supabase/migrations/0001_rls_policies.sql, which specifically warns against
+-- project (unlike ../../d4u_backend/supabase/migrations/, which specifically warns against
 -- that for schema/security changes on staging/prod).
 --
--- BEFORE RUNNING THIS:
--- 1. Apply ../../d4u_backend/supabase/migrations/0001_rls_policies.sql first if you haven't (this seed doesn't
---    touch RLS, but nothing is testable without it).
+-- BEFORE RUNNING THIS BY HAND:
+-- 1. Apply all of ../../d4u_backend/supabase/migrations/ in order first
+--    (0000 through 0012) — this seed doesn't touch RLS or the schema, but
+--    nothing is testable without them, and the status/action values below
+--    only became valid once 0009 actually ran.
 -- 2. Create Auth users via Dashboard -> Authentication -> Users. You only
 --    strictly need one to log in, but creating a few lets you compare an
 --    org-wide role against project_manager's narrower RLS scope
---    (submitted_by = auth.uid() only — see 0001's KNOWN GAP note).
+--    (submitted_by = auth.uid(), or a project they lead — see 0001 and
+--    0007's KNOWN GAP / PM-scoping notes).
 --    Turn on "Auto Confirm User" so you can log in immediately.
 --
 --      thomas.meier@d4u.example    -- project_manager
@@ -33,10 +52,11 @@
 --    "User UID" column) into the `declare` block right below, replacing
 --    the placeholder 00000000-... values.
 --
--- Column names are cross-referenced against ../../d4u_backend/supabase/migrations/0001_rls_policies.sql (ground
--- truth for the columns it references in USING clauses) and the
--- implementation doc's data model for the rest — not yet against generated
--- types (none exist yet, see src/lib/supabase/client.ts for the command).
+-- Column names are cross-referenced against
+-- d4u_backend/supabase/migrations/0000_initial_schema.sql (ground truth,
+-- reconstructed from the live schema via introspection 2026-09-04) rather
+-- than generated types (none exist yet, see src/lib/supabase/client.ts for
+-- the command).
 -- Wrapped in one transaction: if any insert fails (e.g. a column name is
 -- wrong), everything rolls back rather than leaving a half-seeded database.
 --
@@ -97,12 +117,26 @@ begin
   -- ---- users ------------------------------------------------------------
   -- id must equal the matching auth.users.id (FK) — this is why the Auth
   -- users have to exist first (step 2 above).
-  insert into public.users (id, email, first_name, last_name, role, active) values
-    (v_pm,    'thomas.meier@d4u.example',   'Thomas', 'Meier',    'project_manager', true),
-    (v_fin,   'marcus.chen@d4u.example',    'Marcus', 'Chen',     'finance_manager', true),
-    (v_acc,   'sarah.weber@d4u.example',    'Sarah',  'Weber',    'accounting',      true),
-    (v_ceo,   'anna.krueger@d4u.example',   'Anna',   'Krüger',   'ceo',             true),
-    (v_admin, 'hanna.kaufmann@d4u.example', 'Hanna',  'Kaufmann', 'admin',           true)
+  --
+  -- approval_limit choices below are deliberate, not the org-wide 1000 EUR
+  -- default applied uniformly — same-role users are allowed to carry
+  -- different limits by design (backend/CLAUDE.md). Thomas Meier is set
+  -- to 500 specifically so this fixture exercises BOTH routing branches:
+  -- his two smaller expenses (142.50, 249.00) go straight to
+  -- accounting_approval, and his larger one (890.00) escalates to
+  -- ceo_approval first — see the expenses block below. Marcus Chen and
+  -- Hanna Kaufmann get the standard 1000 EUR default. Sarah Weber
+  -- (accounting) and Anna Krüger (ceo) get 0 because their own
+  -- approval_limit is never actually read for their own submissions —
+  -- accounting and ceo both have dedicated bypass branches in
+  -- resolveInitialReviewStatus (state-machine.ts) — so 0 documents "not
+  -- applicable," not "escalates everything."
+  insert into public.users (id, email, first_name, last_name, role, approval_limit, active) values
+    (v_pm,    'thomas.meier@d4u.example',   'Thomas', 'Meier',    'project_manager',  500,  true),
+    (v_fin,   'marcus.chen@d4u.example',    'Marcus', 'Chen',     'finance_manager',  1000, true),
+    (v_acc,   'sarah.weber@d4u.example',    'Sarah',  'Weber',    'accounting',       0,    true),
+    (v_ceo,   'anna.krueger@d4u.example',   'Anna',   'Krüger',   'ceo',              0,    true),
+    (v_admin, 'hanna.kaufmann@d4u.example', 'Hanna',  'Kaufmann', 'admin',            1000, true)
   on conflict (id) do nothing;
 
   -- ---- partners -----------------------------------------------------------
@@ -139,13 +173,13 @@ begin
     (v_grp_str_travel,  v_prj_str, 'Dienstreisen');
 
   -- ---- cost_center_group_members ------------------------------------------
-  -- A cost center can only belong to one group per project (enforced by
-  -- cost_center_group_members_one_group_per_project) — stricter than
-  -- mock-data.ts's fixture, which had cc_1002 (Honorare) in both
-  -- Kita-Ausbau Süd and Sprachförderung. Keeping it only in the former here;
-  -- worth noting for any future Verwaltung/Gruppen UI that lets someone
-  -- assign a cost center to a group, since this would only surface as a
-  -- database error, not a client-side validation message, without one.
+  -- A cost center can only belong to one group per project — enforced by
+  -- cost_center_group_members_one_group_per_project (this constraint was
+  -- documented as already live since 2026-09-03 but was actually missing
+  -- until d4u_backend/supabase/migrations/0011 added it, 2026-09-04; the
+  -- fixture below was already written to respect it — cc_1002 (Honorare)
+  -- appears only in Kita-Ausbau Süd, not also in Sprachförderung like
+  -- mock-data.ts's looser fixture).
   insert into public.cost_center_group_members (group_id, cost_center_id) values
     (v_grp_bib_kita,    v_cc_1001),
     (v_grp_bib_kita,    v_cc_1002),
@@ -173,9 +207,16 @@ begin
     (v_bl_7, v_prj_str, v_grp_str_travel,  8000,  0,    249,    80);
 
   -- ---- expenses -------------------------------------------------------
-  -- Same 8 rows as mock-data.ts's `expenses` array, same statuses/amounts,
-  -- all submitted by v_pm (Thomas Meier) so you can also test
+  -- Same 8 rows as mock-data.ts's `expenses` array, same amounts, all
+  -- submitted by v_pm (Thomas Meier) so you can also test
   -- project_manager's narrower RLS scope by logging in as him.
+  --
+  -- Statuses/approvers below reflect the CURRENT routing model
+  -- (approval_routing.md, 2026-09-05), not the original mock fixture's
+  -- statuses — 'finance_approval' no longer exists as a valid status.
+  -- Thomas Meier's approval_limit is 500 (see users block above), so:
+  --   142.50 and 249.00 (<= 500)  -> accounting_approval, approver Sarah
+  --   890.00            (> 500)   -> ceo_approval, approver Anna
   insert into public.expenses (
     id, expense_type, project_id, budget_line_id, cost_center_id, partner_id,
     amount, description, vendor_name, invoice_number, receipt_status,
@@ -183,11 +224,11 @@ begin
   ) values
     (gen_random_uuid(), 'standard', v_prj_bib, v_bl_3, v_cc_3200, null,
      142.5, 'Berlin Workshop Verpflegung', 'Café Kreuzberg', 'R-2024-8842', 'attached',
-     '/receipts/EXP-9021-cafe-kreuzberg.pdf', v_pm, v_fin, 'finance_approval', '2024-10-12T09:12:00Z'),
+     '/receipts/EXP-9021-cafe-kreuzberg.pdf', v_pm, v_acc, 'accounting_approval', '2024-10-12T09:12:00Z'),
 
     (gen_random_uuid(), 'standard', v_prj_str, v_bl_7, v_cc_3100, null,
      249.0, 'Bahncard-Abonnement 2024', 'Deutsche Bahn AG', 'BC-24-887', 'attached',
-     '/receipts/EXP-9020-bahncard.pdf', v_pm, v_fin, 'finance_approval', '2024-10-10T11:00:00Z'),
+     '/receipts/EXP-9020-bahncard.pdf', v_pm, v_acc, 'accounting_approval', '2024-10-10T11:00:00Z'),
 
     (gen_random_uuid(), 'standard', v_prj_bib, v_bl_1, v_cc_1001, null,
      890.0, 'Büromiete November', 'Immobilien Nord', 'IN-11-2024', 'attached',
@@ -218,8 +259,20 @@ end $$;
 commit;
 
 -- =========================================================================
--- Verify: as the finance_manager (Marcus Chen), Übersicht should show 2
--- pending cards (EXP-9021, EXP-9020 — both assigned_approver = v_fin) and
+-- Verify (updated for the current routing model — Finance Manager has no
+-- approval role at all, Accounting is the universal final approver):
+--
+-- As Sarah Weber (accounting), Übersicht should show 2 pending cards
+-- (EXP-9021 Café Kreuzberg, EXP-9020 Bahncard — both assigned_approver =
+-- v_acc, status accounting_approval).
+--
+-- As Anna Krüger (ceo), Übersicht should show 1 pending card (EXP-9015
+-- Büromiete November — the only expense over Thomas's 500 EUR limit).
+--
+-- As Marcus Chen (finance_manager), Übersicht should show ZERO pending
+-- approval cards — confirms Finance Manager genuinely has no approval
+-- role under the current model, not just an empty queue by coincidence.
+--
 -- Budget-Status should read Bildungsinitiative Berlin Ist 640,00 € /
 -- Obligo 1.032,50 €, Integration Neukölln Ist 0,00 € / Obligo 8.200,00 €,
 -- Strukturförderung 2024 Ist 1.240,00 € / Obligo 249,00 € — matching the
@@ -228,5 +281,6 @@ commit;
 -- As Thomas Meier (project_manager), Übersicht's expense table should show
 -- only his 8 own submissions (all of them, since he submitted every row
 -- here) with the RLS policy in force — logging in as anyone who did NOT
--- submit any of these rows and is not an org-wide role would show zero.
+-- submit any of these rows and does not lead a project any of them belong
+-- to would show zero.
 -- =========================================================================

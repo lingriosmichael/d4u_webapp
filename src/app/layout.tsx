@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
-import { Sora, Manrope } from "next/font/google";
+import { Jost, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const sora = Sora({
+// Jost: page titles and section headings only (18px+). Inter: everything
+// else — tables, forms, labels, every figure. See brand_guidelines/.
+const jost = Jost({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["300", "400", "500"],
   variable: "--font-heading-sans",
   display: "swap",
 });
 
-const manrope = Manrope({
+const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-body-sans",
@@ -31,7 +33,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de" className={`${sora.variable} ${manrope.variable}`}>
+    <html lang="de" className={`${jost.variable} ${inter.variable}`}>
       <body>
         <Providers>{children}</Providers>
       </body>

@@ -11,7 +11,7 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="font-heading text-xl font-semibold tracking-tight text-foreground">
+        <h1 className="font-heading text-[22px] leading-[1.3] font-medium tracking-tight text-foreground">
           Diese Seite konnte nicht geladen werden
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">

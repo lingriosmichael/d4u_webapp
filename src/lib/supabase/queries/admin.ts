@@ -12,8 +12,19 @@ import type { Role } from "@/lib/mock-data";
 export interface AdminUser {
   id: string;
   name: string;
+  // Kept alongside the combined `name` (used for display) so the edit form
+  // can populate its first_name/last_name fields directly instead of
+  // splitting `name` back apart on whitespace — a multi-word first or last
+  // name (common in German names, e.g. "Anna Lena", "von Berg") would
+  // otherwise be misattributed on save.
+  firstName: string;
+  lastName: string;
   email: string;
   role: Role;
+  // Added 2026-09-05 (documentation/approval_routing.md §2) — a SUBMITTER
+  // attribute: the amount above which this user's own submissions require
+  // CEO review before Accounting. NOT NULL DEFAULT 0 in the schema.
+  approvalLimit: number;
   active: boolean;
   initials: string;
 }
@@ -82,14 +93,17 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("users")
-    .select("id, email, first_name, last_name, role, active")
+    .select("id, email, first_name, last_name, role, active, approval_limit")
     .order("last_name");
 
   return (data ?? []).map((u) => ({
     id: u.id,
     name: `${u.first_name} ${u.last_name}`.trim(),
+    firstName: u.first_name,
+    lastName: u.last_name,
     email: u.email,
     role: u.role,
+    approvalLimit: Number(u.approval_limit),
     active: u.active,
     initials: [u.first_name, u.last_name]
       .map((p: string) => p?.[0] ?? "")
@@ -210,10 +224,26 @@ export async function getAdminPartners(): Promise<AdminPartner[]> {
   }));
 }
 
+// settings.value is a text column, not jsonb — verified live (2026-09-03):
+// a stored `1000` round-trips as the string "1000", a stored `false` as the
+// string "false". Without parsing, SettingsTab's `typeof s.value ===
+// "boolean"` check (admin-view.tsx) is always false, so a boolean setting
+// like advance_requires_ceo_approval rendered as a text box showing the
+// literal word "false" instead of a switch. Parsed here, once, rather than
+// re-deriving the type at every render site.
+function parseSettingValue(raw: unknown): unknown {
+  if (typeof raw !== "string") return raw;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  const num = Number(raw);
+  if (raw.trim() !== "" && Number.isFinite(num)) return num;
+  return raw;
+}
+
 export async function getAdminSettings(): Promise<AdminSetting[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("settings").select("key, value");
-  return data ?? [];
+  return (data ?? []).map((s) => ({ key: s.key, value: parseSettingValue(s.value) }));
 }
 
 // admin_audit_log is populated by a database trigger, not application code

@@ -1,0 +1,40 @@
+name: CI
+
+# Mirrors d4u_backend's CI workflow. Runs lint + typecheck + the unit test
+# suite (added this session -- previously this repo had no automated tests
+# at all) + a full build on every push and pull request.
+#
+# No repository secrets required: verified directly that `npm run build`
+# succeeds with zero env vars set (every route here is request-time
+# dynamic; nothing touches Supabase at build time), and the test suite
+# mocks the Supabase client rather than hitting a real project.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      # Combines `tsc --noEmit` + `eslint .` — the same command a developer
+      # runs locally before opening a PR (package.json's own "vercel:check").
+      - run: npm run vercel:check
+
+      - run: npm test
+
+      - run: npm run build

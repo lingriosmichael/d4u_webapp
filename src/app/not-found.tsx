@@ -4,10 +4,10 @@ export default function NotFound() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <div className="text-[10px] font-heading font-semibold uppercase tracking-widest text-muted-foreground">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           404
         </div>
-        <h1 className="mt-2 font-heading text-2xl font-semibold text-foreground">
+        <h1 className="mt-2 font-heading text-[22px] leading-[1.3] font-medium text-foreground">
           Seite nicht gefunden
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">

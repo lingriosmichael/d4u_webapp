@@ -11,6 +11,7 @@
 import { createClient } from "./supabase/client";
 
 export type BackendEndpoint =
+  | "expenses.create"
   | "expenses.approve"
   | "expenses.requestChanges"
   | "expenses.reject"
@@ -21,14 +22,23 @@ export type BackendEndpoint =
   | "expenses.reassign"
   | "expenses.reassignApprove"
   | "expenses.resubmit"
+  | "expenses.attachReceipt"
+  | "advances.split"
+  | "advances.submitForReconciliation"
   | "admin.users.upsert"
   | "admin.users.setActive"
+  | "admin.users.delete"
   | "admin.projects.upsert"
+  | "admin.projects.delete"
   | "admin.costCenters.upsert"
+  | "admin.costCenters.delete"
   | "admin.groups.upsert"
+  | "admin.groups.delete"
   | "admin.groups.setMembership"
   | "admin.budgets.upsert"
+  | "admin.budgets.delete"
   | "admin.partners.upsert"
+  | "admin.partners.delete"
   | "admin.settings.update";
 
 export interface BackendResult {
@@ -67,6 +77,8 @@ function resolveRoute(
   const id = payload.id as string | undefined;
 
   switch (endpoint) {
+    case "expenses.create":
+      return { method: "POST", path: `/api/expenses` };
     case "expenses.approve":
       return { method: "POST", path: `/api/expenses/${expenseId}/approve` };
     case "expenses.requestChanges":
@@ -86,24 +98,38 @@ function resolveRoute(
       return { method: "POST", path: `/api/expenses/${expenseId}/reassign/request` };
     case "expenses.reassignApprove":
       return { method: "POST", path: `/api/expenses/${expenseId}/reassign/approve` };
+    case "expenses.attachReceipt":
+      return { method: "POST", path: `/api/expenses/${expenseId}/receipt` };
+    case "advances.split":
+      return { method: "POST", path: `/api/advances/${expenseId}/split` };
+    case "advances.submitForReconciliation":
+      return { method: "POST", path: `/api/advances/${expenseId}/submit-for-reconciliation` };
     case "admin.users.upsert":
       return id
         ? { method: "PATCH", path: `/api/admin/users/${id}` }
         : { method: "POST", path: `/api/admin/users` };
     case "admin.users.setActive":
       return { method: "PATCH", path: `/api/admin/users/${id}` };
+    case "admin.users.delete":
+      return { method: "DELETE", path: `/api/admin/users/${id}` };
     case "admin.projects.upsert":
       return id
         ? { method: "PATCH", path: `/api/admin/projects/${id}` }
         : { method: "POST", path: `/api/admin/projects` };
+    case "admin.projects.delete":
+      return { method: "DELETE", path: `/api/admin/projects/${id}` };
     case "admin.costCenters.upsert":
       return id
         ? { method: "PATCH", path: `/api/admin/cost-centers/${id}` }
         : { method: "POST", path: `/api/admin/cost-centers` };
+    case "admin.costCenters.delete":
+      return { method: "DELETE", path: `/api/admin/cost-centers/${id}` };
     case "admin.groups.upsert":
       return id
         ? { method: "PATCH", path: `/api/admin/groups/${id}` }
         : { method: "POST", path: `/api/admin/groups` };
+    case "admin.groups.delete":
+      return { method: "DELETE", path: `/api/admin/groups/${id}` };
     case "admin.groups.setMembership": {
       const action = payload.action === "remove" ? "DELETE" : "POST";
       return { method: action, path: `/api/admin/groups/${payload.groupId}/membership` };
@@ -112,13 +138,26 @@ function resolveRoute(
       return id
         ? { method: "PATCH", path: `/api/admin/budget-lines/${id}` }
         : { method: "POST", path: `/api/admin/budget-lines` };
+    case "admin.budgets.delete":
+      return { method: "DELETE", path: `/api/admin/budget-lines/${id}` };
     case "admin.partners.upsert":
       return id
         ? { method: "PATCH", path: `/api/admin/partners/${id}` }
         : { method: "POST", path: `/api/admin/partners` };
+    case "admin.partners.delete":
+      return { method: "DELETE", path: `/api/admin/partners/${id}` };
     case "admin.settings.update":
       return { method: "PATCH", path: `/api/admin/settings` };
   }
+}
+
+/** Surfaces a BackendError's message (already German, user-safe — see
+ * d4u_backend/src/lib/errors.ts) or a generic fallback for anything else
+ * (network failure, unexpected shape), per this app's rule against
+ * exposing internals in user-facing copy. */
+export function backendErrorMessage(error: unknown): string {
+  if (error instanceof BackendError) return error.message;
+  return "Die Aktion konnte nicht ausgeführt werden. Bitte versuchen Sie es erneut.";
 }
 
 async function getAccessToken(): Promise<string> {
