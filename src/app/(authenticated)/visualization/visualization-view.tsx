@@ -200,8 +200,7 @@ function AdvanceOverviewSection({ advances }: { advances: AdvanceOverviewRow[] }
         </thead>
         <tbody>
           {advances.map((a) => {
-            const freigegeben =
-              a.reconciledAmount === null ? null : a.amount - a.reconciledAmount;
+            const freigegeben = a.reconciledAmount === null ? null : a.amount - a.reconciledAmount;
             return (
               <tr key={a.id} className="border-t border-line">
                 <td className="px-6 py-3">{a.partnerName}</td>
