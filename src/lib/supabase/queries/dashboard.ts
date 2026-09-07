@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import type { ExpenseStatus } from "@/lib/mock-data";
+import type { ExpenseStatus, Role } from "@/lib/mock-data";
+import { isApprovalStageReviewer } from "@/lib/approval-stage-role";
 
 // Data-access layer for the Übersicht (dashboard) screen. Column names come
 // from documentation/0001_rls_policies.sql (ground truth for the columns it
@@ -37,7 +38,6 @@ export interface DashboardExpense {
   createdAt: string;
   submittedBy: string;
   submittedByName: string | null;
-  assignedApprover: string | null;
   partnerId: string | null;
   partnerName: string | null;
 }
@@ -88,22 +88,18 @@ export async function getDashboardExpenses(): Promise<DashboardExpense[]> {
 
   const { data, error } = await supabase
     .from("expenses")
-    .select(
-      "id, project_id, amount, description, status, created_at, submitted_by, assigned_approver, partner_id",
-    )
+    .select("id, project_id, amount, description, status, created_at, submitted_by, partner_id")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
   const expenses = data ?? [];
 
-  // `users` RLS only grants each person their own row (plus admin sees all —
-  // see documentation/0001_rls_policies.sql). For an org-wide reader viewing
-  // expenses submitted by other people, this lookup will legitimately come
-  // back empty for those rows — submittedByName degrades to null rather than
-  // erroring. Worth adding a `users_select_org_wide` policy (mirroring the
-  // is_org_wide_reader() pattern already used elsewhere in that file) if
-  // showing submitter names to approvers is wanted — that's a policy change
-  // for the team to make, not something to route around here.
+  // `users_select_org_wide` (supabase/migrations/0010, d4u_backend) covers
+  // finance_manager/accounting/ceo/admin reading any submitter's name; a
+  // project_manager additionally sees the submitter's name for any expense
+  // on a project they lead. A viewer outside both of those still
+  // legitimately gets an empty result for someone else's row —
+  // submittedByName degrades to null rather than erroring.
   const submitterIds = [...new Set(expenses.map((e) => e.submitted_by).filter(Boolean))];
   const partnerIds = [...new Set(expenses.map((e) => e.partner_id).filter(Boolean))];
 
@@ -130,22 +126,20 @@ export async function getDashboardExpenses(): Promise<DashboardExpense[]> {
     createdAt: e.created_at,
     submittedBy: e.submitted_by,
     submittedByName: userNameById.get(e.submitted_by) ?? null,
-    assignedApprover: e.assigned_approver,
     partnerId: e.partner_id,
     partnerName: e.partner_id ? (partnerNameById.get(e.partner_id) ?? null) : null,
   }));
 }
 
-/** Mirrors mock-data.ts's needsActionFor: assigned approver, or accounting
+/** Mirrors d4u_backend's real authorization (see approval-stage-role.ts):
+ * the role whose approval stage an expense is currently at, or accounting
  * reviewing an unverified partner advance. */
 export function needsActionFor(
   expenses: DashboardExpense[],
-  currentUserId: string,
-  currentUserRole: string,
+  currentUserRole: Role,
 ): DashboardExpense[] {
   return expenses.filter((e) => {
     if (currentUserRole === "accounting" && e.status === "submitted_unverified") return true;
-    if (e.assignedApprover === currentUserId) return true;
-    return false;
+    return isApprovalStageReviewer(e.status, currentUserRole);
   });
 }

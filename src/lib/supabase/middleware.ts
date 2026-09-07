@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Refreshes the Supabase auth session cookie on every request so it doesn't
 // expire silently in the middle of a visit, and redirects unauthenticated
-// visitors to /login. app/(app)/layout.tsx has its own redirect too — kept
+// visitors to /login. app/(authenticated)/layout.tsx has its own redirect too — kept
 // as a second, independent guard rather than relying on middleware alone.
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });

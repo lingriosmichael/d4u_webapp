@@ -11,7 +11,7 @@ interface RoleContextValue {
 const RoleContext = createContext<RoleContextValue | null>(null);
 
 // Seeded from the real signed-in user (see supabase/queries/current-user.ts),
-// fetched server-side by app/(app)/layout.tsx — there is no client-side role
+// fetched server-side by app/(authenticated)/layout.tsx — there is no client-side role
 // switching anymore. Signing in as a different account is the only way to
 // see the app as a different role now.
 export function RoleProvider({ user, children }: { user: User; children: ReactNode }) {

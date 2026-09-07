@@ -7,6 +7,7 @@
     "moduleResolution": "bundler",
     "allowJs": true,
     "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
