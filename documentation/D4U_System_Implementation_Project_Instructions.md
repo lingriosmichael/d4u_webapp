@@ -245,6 +245,22 @@ There is no Excel-row-to-receipt-filename matching step, no "flag missing files"
 
 ---
 
+## 2E. Implementer decisions from the 12 Oct 2026 money-integrity fixes (🟡 pending D4U's written confirmation)
+
+**Status: built (d4u_backend migrations 0029–0031), decided on the implementer side, not yet confirmed by D4U in writing.** Not applied to any Supabase project as of 12 Oct 2026. Each migration has to be applied together with the backend build that matches it.
+
+- **Umwidmung is blocked while a partner advance is being reconciled (migration 0029).** A reassignment can no longer be proposed or approved for an advance in `reconciliation_in_progress` or `reconciliation_submitted`, or for one of its split line items (`awaiting_receipt`). An advance can still be reassigned before it is split (`submitted_unverified`). Why: `advance_reconcile` releases the advance's Obligo from, and books every line's Ist to, the advance's *current* budget line, so reassigning in between left the full amount as phantom Obligo on the old line and debited the new one. Building full support instead (moving Obligo and every line item together) was considered and deferred. **To confirm with D4U:** is "reassign before the Excel split, or not at all" acceptable for advances?
+- **An expense amount is always above 0 (migration 0031).** There are no credit notes, refunds or negative expenses in this system, so `expenses.amount > 0` is now a database rule (added `NOT VALID`: it applies to new and changed rows; existing rows still have to be checked with the query documented in 0031, then validated). **To confirm with D4U:** that a Gutschrift or refund is never booked as an expense here.
+
+Engineering changes in the same set, with no business-rule change (for §9's RPC contracts):
+
+- `budget_update(expense_id, actor_id, expected_status, new_status)` now refuses with SQLSTATE `D4301` when the expense is no longer in the status the backend checked (a concurrent approve/reject, a late approve after payment or after an undo), and returns whether it applied anything. The backend answers `409` ("Der Beleg wurde inzwischen geändert"). Direct status updates in the backend are conditional on the checked status the same way (migration 0030).
+- `undo_approval` only accepts `ceo_approval` or `accounting_approval` as the status an undo routes to (0030).
+- `advance_split` refuses line items without a positive gross amount, local amount and exchange rate (`D4401`); `confirm_payment` refuses a missing or out-of-range VAT rate (`D4103`) and a missing net amount (`D4101`) (0031).
+- The system now has six RPCs, not five: `advance_split` (0018) is the sixth, and `reassign_expense` takes a proposal id since 0028.
+
+---
+
 ## 3. Database to implement: 12 tables
 
 The current ERD is a 12-table database, and the visual database diagram reflects this revised structure, including project-scoped cost-center groups, group-level budget lines, expense self-references for Vorschuss reconciliation, the accounting-detail table, and separate approval/admin audit logs. This is unaffected by the architecture revision in §0.
@@ -749,6 +765,13 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 - ~~Does Accounting have authority to override an FM approval?~~ — moot; there's no FM approval left. Accounting/CEO can both `undo_approval` from `awaiting_payment`.
 - ~~Which role(s) may initiate/request an Umwidmung?~~ — Finance Manager, Project Manager, or CEO, by role alone.
 - ~~Custom backend vs. n8n/Metabase (as a development blocker)~~ — confirmed, proceed with custom backend for now (the written confirmation itself is a separate, still-open item below).
+
+**Added 12 Oct 2026 — built as implementer decisions, see §2E; confirm with D4U in writing:**
+
+| Priority | Decision required                                                                                                             |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| High     | Is "Umwidmung of a partner advance only before its Excel split" acceptable, or must reassignment during reconciliation work? |
+| High     | Confirm no Gutschrift/refund is ever booked as an expense, so `amount > 0` can stay a database rule                          |
 
 **Still open, unchanged since the last edit to this document:**
 
