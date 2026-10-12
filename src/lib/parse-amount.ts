@@ -1,34 +1,49 @@
+// "1500", "1500,5", "1.500", "1.234,56" -- optional thousands groups, optional ,dd
+const GERMAN_AMOUNT = /^(\d+|\d{1,3}(\.\d{3})+)(,\d{1,2})?$/;
+// "1.5", "1500.50" -- a dot followed by one or two digits is a decimal point
+const DOT_DECIMAL_AMOUNT = /^\d+\.\d{1,2}$/;
+
 /**
- * Parses a currency amount typed in German notation, where "," is the
- * decimal separator and "." is an optional thousands separator (e.g.
- * "1.234,56"). `parseFloat(raw.replace(",", "."))` — the previous approach
- * in both upload forms — only replaces the first comma, so "1.234,56"
- * became "1.234.56" and parseFloat stopped at the second "." and returned
- * 1.234, silently truncating a real four-figure amount to about a
- * thousandth of its value (BUG-010, test-run/findings/BUGS.md).
+ * Parses a EUR amount typed in a form, strictly. Returns NaN for anything
+ * that isn't unambiguously an amount with at most two decimals, so the form
+ * can refuse it instead of submitting a silently different number.
  *
- * Whichever of "," or "." appears LAST in the string is treated as the
- * decimal separator; any occurrences of the other character before it are
- * stripped as thousands grouping. A bare "1234.56" or "1.234" (a single
- * separator with no comma at all) is left as parseFloat would already
- * interpret it, matching prior behavior for those inputs.
+ * Accepted:
+ * - German notation: "1500", "1500,5", "1.500", "1.234,56", "1.234.567,89"
+ *   ("." followed by groups of exactly three digits is thousands grouping,
+ *   so "1.500" is 1500, not 1.5)
+ * - A dot as the decimal separator with one or two decimals: "1.5", "1500.50"
+ * - Surrounding spaces and a "€" sign
+ *
+ * Rejected (NaN): "12abc", "1,500" (three decimals), "1,2,3", "-5", "", and
+ * more than two decimals. The previous lenient parser read "1.500" as 1.5
+ * and "12abc" as 12.
  */
 export function parseGermanAmount(raw: string): number {
-  const trimmed = raw.trim();
-  if (trimmed === "") return NaN;
+  const compact = raw.replace(/[\s€]/g, "");
 
-  const lastComma = trimmed.lastIndexOf(",");
-  const lastDot = trimmed.lastIndexOf(".");
-
-  let normalized: string;
-  if (lastComma > lastDot) {
-    normalized =
-      trimmed.slice(0, lastComma).replace(/\./g, "") + "." + trimmed.slice(lastComma + 1);
-  } else if (lastDot > lastComma) {
-    normalized = trimmed.slice(0, lastDot).replace(/,/g, "") + "." + trimmed.slice(lastDot + 1);
-  } else {
-    normalized = trimmed;
+  if (GERMAN_AMOUNT.test(compact)) {
+    return Number(compact.replace(/\./g, "").replace(",", "."));
   }
+  if (DOT_DECIMAL_AMOUNT.test(compact)) {
+    return Number(compact);
+  }
+  return NaN;
+}
 
-  return parseFloat(normalized);
+/** Shown under an amount field whose text parseGermanAmount rejects. */
+export const INVALID_AMOUNT_HINT = "Bitte einen gültigen Betrag eingeben, z. B. 1.234,56";
+
+/** A number as the text an amount field shows: 1234.5 → "1234,50". */
+export function formatAmountInput(amount: number): string {
+  return amount.toFixed(2).replace(".", ",");
+}
+
+/**
+ * Net from gross at a VAT rate, rounded to cents -- the same formula the
+ * backend checks submitted net amounts against (receipt route,
+ * confirm_payment), so a prefilled net is always accepted.
+ */
+export function netFromGross(gross: number, vatRatePercent: number): number {
+  return Math.round((gross / (1 + vatRatePercent / 100)) * 100) / 100;
 }

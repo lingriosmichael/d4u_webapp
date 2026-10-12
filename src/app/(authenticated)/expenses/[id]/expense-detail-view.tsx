@@ -33,7 +33,12 @@ import {
 import { AlertTriangle, ArrowLeft, CheckCircle2, Plus, Trash2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { parseGermanAmount } from "@/lib/parse-amount";
+import {
+  INVALID_AMOUNT_HINT,
+  formatAmountInput,
+  netFromGross,
+  parseGermanAmount,
+} from "@/lib/parse-amount";
 import {
   UmwidmungDecisionCard,
   UmwidmungPendingNotice,
@@ -535,7 +540,12 @@ function MarkPaidCard({ expense }: { expense: ExpenseDetail }) {
   const [open, setOpen] = useState(false);
   const [bookingKey, setBookingKey] = useState("");
   const [vatRate, setVatRate] = useState<0 | 7 | 19>(19);
-  const [netAmount, setNetAmount] = useState(() => netFromGross(expense.amount, 19));
+  // Kept as the typed text and parsed on submit: re-formatting a parsed
+  // number on every keystroke swallowed a typed comma ("12," became "12").
+  const [netAmountText, setNetAmountText] = useState(() =>
+    formatAmountInput(netFromGross(expense.amount, 19)),
+  );
+  const netAmount = parseGermanAmount(netAmountText);
   const [kskLiable, setKskLiable] = useState(false);
   const [supplierVatId, setSupplierVatId] = useState("");
   const [supplierAddress, setSupplierAddress] = useState("");
@@ -545,10 +555,10 @@ function MarkPaidCard({ expense }: { expense: ExpenseDetail }) {
   const handleVatRateChange = (v: string) => {
     const rate = Number(v) as 0 | 7 | 19;
     setVatRate(rate);
-    setNetAmount(netFromGross(expense.amount, rate));
+    setNetAmountText(formatAmountInput(netFromGross(expense.amount, rate)));
   };
 
-  const isValid = bookingKey.trim().length > 0 && !isNaN(netAmount);
+  const isValid = bookingKey.trim().length > 0 && !isNaN(netAmount) && netAmount > 0;
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -635,12 +645,12 @@ function MarkPaidCard({ expense }: { expense: ExpenseDetail }) {
                   className="mt-1.5 font-mono"
                   type="text"
                   inputMode="decimal"
-                  value={String(netAmount).replace(".", ",")}
-                  onChange={(e) => {
-                    const v = parseGermanAmount(e.target.value);
-                    setNetAmount(isNaN(v) ? 0 : v);
-                  }}
+                  value={netAmountText}
+                  onChange={(e) => setNetAmountText(e.target.value)}
                 />
+                {isNaN(netAmount) && (
+                  <p className="text-[11px] text-destructive mt-1">{INVALID_AMOUNT_HINT}</p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -695,10 +705,6 @@ function MarkPaidCard({ expense }: { expense: ExpenseDetail }) {
       </Dialog>
     </section>
   );
-}
-
-function netFromGross(gross: number, vatRate: number): number {
-  return Math.round((gross / (1 + vatRate / 100)) * 100) / 100;
 }
 
 // --- Documents received (Accounting, open partner advances) ----------------

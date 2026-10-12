@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { PageContainer, PageHeader } from "@/components/layout/app-shell";
 import { useCurrentUser } from "@/lib/role-context";
 import { fmtEUR } from "@/lib/mock-data";
-import { parseGermanAmount } from "@/lib/parse-amount";
+import { INVALID_AMOUNT_HINT, parseGermanAmount } from "@/lib/parse-amount";
 import type { UploadProject, UploadPartner } from "@/lib/supabase/queries/upload-options";
 import { callBackend, BackendError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -228,6 +228,9 @@ export function AdvanceForm({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
+              {amount.trim() !== "" && isNaN(amountNum) && (
+                <p className="text-[11px] text-destructive mt-1">{INVALID_AMOUNT_HINT}</p>
+              )}
             </div>
             <div>
               <Label htmlFor="description" className="text-xs">

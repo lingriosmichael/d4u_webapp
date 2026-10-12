@@ -7,6 +7,12 @@ import { PageContainer, PageHeader, StatusPill } from "@/components/layout/app-s
 import { fmtEUR, statusLabel, statusTone } from "@/lib/mock-data";
 import { callBackend, backendErrorMessage } from "@/lib/api";
 import { uploadReceipt } from "@/lib/supabase/upload-receipt";
+import {
+  INVALID_AMOUNT_HINT,
+  formatAmountInput,
+  netFromGross,
+  parseGermanAmount,
+} from "@/lib/parse-amount";
 import { createClient } from "@/lib/supabase/client";
 import type {
   AdvanceReconciliationDetail,
@@ -234,6 +240,12 @@ function SplitLinesSection({
   );
 }
 
+/** EUR value of a line's local-currency amount, rounded to cents -- the
+ * same computation the backend's receipt route books. */
+function grossInEur(localAmount: number, exchangeRate: number): number {
+  return Math.round((localAmount / (exchangeRate || 1)) * 100) / 100;
+}
+
 function ChildLineCard({
   child,
   projectCode,
@@ -261,10 +273,17 @@ function ChildLineCard({
   // (the source document doesn't have one -- see the same migration).
   const [localAmount, setLocalAmount] = useState(child.localAmount ?? child.amount);
   const [exchangeRate, setExchangeRate] = useState(child.exchangeRate ?? 1);
-  const correctedGross = Math.round((localAmount / (exchangeRate || 1)) * 100) / 100;
-  const [netAmount, setNetAmount] = useState(
-    child.netAmount ?? Math.round((child.amount / 1.19) * 100) / 100,
+  const correctedGross = grossInEur(localAmount, exchangeRate);
+  // Recomputed whenever USt-Satz, amount or exchange rate change: the
+  // backend rejects a net that doesn't match gross and VAT, so a net left
+  // over from the previous values could not be saved. Kept as typed text so
+  // a manual correction (within the backend's 2-cent tolerance) still works.
+  const [netAmountText, setNetAmountText] = useState(() =>
+    formatAmountInput(child.netAmount ?? netFromGross(correctedGross, vatRate)),
   );
+  const netAmount = parseGermanAmount(netAmountText);
+  const resetNet = (gross: number, rate: number) =>
+    setNetAmountText(formatAmountInput(netFromGross(gross, rate)));
   const [kskLiable, setKskLiable] = useState(!!child.kskLiable);
   const [submitting, setSubmitting] = useState(false);
 
@@ -277,6 +296,10 @@ function ChildLineCard({
     }
     if (!file && !child.documentRef) {
       toast.error("Beleg fehlt");
+      return;
+    }
+    if (isNaN(netAmount) || netAmount <= 0) {
+      toast.error("Netto-Betrag ungültig", { description: INVALID_AMOUNT_HINT });
       return;
     }
     setSubmitting(true);
@@ -374,7 +397,11 @@ function ChildLineCard({
                 type="number"
                 step="0.01"
                 value={localAmount || ""}
-                onChange={(e) => setLocalAmount(parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  const nextLocalAmount = parseFloat(e.target.value) || 0;
+                  setLocalAmount(nextLocalAmount);
+                  resetNet(grossInEur(nextLocalAmount, exchangeRate), vatRate);
+                }}
               />
             </div>
             <div>
@@ -384,7 +411,11 @@ function ChildLineCard({
                 type="number"
                 step="0.0001"
                 value={exchangeRate || ""}
-                onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  const nextExchangeRate = parseFloat(e.target.value) || 0;
+                  setExchangeRate(nextExchangeRate);
+                  resetNet(grossInEur(localAmount, nextExchangeRate), vatRate);
+                }}
               />
             </div>
             <div>
@@ -402,7 +433,11 @@ function ChildLineCard({
               <Label className="text-xs">USt-Satz</Label>
               <Select
                 value={String(vatRate)}
-                onValueChange={(v) => setVatRate(parseInt(v) as 0 | 7 | 19)}
+                onValueChange={(v) => {
+                  const nextVatRate = parseInt(v) as 0 | 7 | 19;
+                  setVatRate(nextVatRate);
+                  resetNet(correctedGross, nextVatRate);
+                }}
               >
                 <SelectTrigger className="mt-1.5">
                   <SelectValue />
@@ -418,11 +453,14 @@ function ChildLineCard({
               <Label className="text-xs">Netto (EUR)</Label>
               <Input
                 className="mt-1.5 font-mono"
-                type="number"
-                step="0.01"
-                value={netAmount || ""}
-                onChange={(e) => setNetAmount(parseFloat(e.target.value) || 0)}
+                type="text"
+                inputMode="decimal"
+                value={netAmountText}
+                onChange={(e) => setNetAmountText(e.target.value)}
               />
+              {isNaN(netAmount) && (
+                <p className="text-[11px] text-destructive mt-1">{INVALID_AMOUNT_HINT}</p>
+              )}
             </div>
             <div>
               <Label className="text-xs">
