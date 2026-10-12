@@ -348,6 +348,16 @@ function actionLabel(a: string): string {
       return "Umgewidmet";
     case "reminder_sent":
       return "Erinnerung gesendet";
+    case "escalated_to_ceo":
+      return "An die Geschäftsführung weitergeleitet";
+    case "self_approval_flagged":
+      return "Selbstfreigabe durch die Buchhaltung vermerkt";
+    case "advance_split":
+      return "In Einzelposten aufgeteilt";
+    case "reconciliation_submitted":
+      return "Zur Abrechnung eingereicht";
+    case "budget_incremented":
+      return "Budget reserviert";
     default:
       return a;
   }
