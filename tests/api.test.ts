@@ -50,6 +50,7 @@ describe("callBackend route resolution", () => {
     ["expenses.reconcile", { expenseId: "e1" }, "POST", "/api/advances/e1/reconcile/commit"],
     ["expenses.reassign", { expenseId: "e1" }, "POST", "/api/expenses/e1/reassign/request"],
     ["expenses.reassignApprove", { expenseId: "e1" }, "POST", "/api/expenses/e1/reassign/approve"],
+    ["expenses.reassignReject", { expenseId: "e1" }, "POST", "/api/expenses/e1/reassign/reject"],
     ["expenses.attachReceipt", { expenseId: "c1" }, "POST", "/api/expenses/c1/receipt"],
     ["advances.split", { expenseId: "a1" }, "POST", "/api/advances/a1/split"],
     [

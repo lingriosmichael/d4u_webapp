@@ -8,6 +8,7 @@ import { fmtEUR, fmtDate, fmtDateTime, statusLabel, statusTone } from "@/lib/moc
 import type { ExpenseDetail, ReconciledLine } from "@/lib/supabase/queries/expense-detail";
 import type { UploadProject } from "@/lib/supabase/queries/upload-options";
 import type { PermittedActions } from "@/lib/supabase/queries/permitted-actions";
+import type { ReassignmentProposal } from "@/lib/supabase/queries/reassignment-proposals";
 import { callBackend, BackendError, backendErrorMessage } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,11 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Plus, Trash2, Undo2 } from "luc
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { parseGermanAmount } from "@/lib/parse-amount";
+import {
+  UmwidmungDecisionCard,
+  UmwidmungPendingNotice,
+  UmwidmungProposeCard,
+} from "./umwidmung-cards";
 
 type Mode = "review" | "edit" | "reconcile" | "readonly";
 
@@ -57,10 +63,12 @@ export function ExpenseDetailView({
   expense,
   reassignProjects,
   permittedActions,
+  openReassignmentProposal,
 }: {
   expense: ExpenseDetail;
   reassignProjects: UploadProject[];
   permittedActions: PermittedActions;
+  openReassignmentProposal: ReassignmentProposal | null;
 }) {
   const mode: Mode = useMemo(() => {
     // documentsReceived is permitted exactly when the backend considers
@@ -76,9 +84,13 @@ export function ExpenseDetailView({
   }, [permittedActions]);
 
   // Umwidmung is a separate two-step action, not tied to `mode` — it can be
-  // proposed or approved regardless of whose turn it is to approve/reject.
-  const canProposeReassign = permittedActions.reassignRequest;
-  const canApproveReassign = permittedActions.reassignApprove;
+  // proposed or decided regardless of whose turn it is to approve/reject.
+  const canDecideReassign = permittedActions.reassignApprove || permittedActions.reassignReject;
+  // The proposal is an approval_logs row, so its author's name is already
+  // resolved in the timeline data.
+  const reassignProposerName = openReassignmentProposal
+    ? (expense.logs.find((l) => l.id === openReassignmentProposal.proposalId)?.actorName ?? null)
+    : null;
 
   // No separate "rejected" log action exists in the real schema (verified
   // against the live approval_logs_action_check constraint) — only
@@ -146,10 +158,26 @@ export function ExpenseDetailView({
           )}
           {permittedActions.undoApproval && <UndoApprovalCard expense={expense} />}
           {permittedActions.markPaid && <MarkPaidCard expense={expense} />}
-          {canProposeReassign && <UmwidmungProposeCard expense={expense} />}
-          {canApproveReassign && (
-            <UmwidmungApproveCard expense={expense} projects={reassignProjects} />
+          {permittedActions.reassignRequest && (
+            <UmwidmungProposeCard expense={expense} projects={reassignProjects} />
           )}
+          {openReassignmentProposal &&
+            (canDecideReassign ? (
+              <UmwidmungDecisionCard
+                expense={expense}
+                proposal={openReassignmentProposal}
+                proposerName={reassignProposerName}
+                projects={reassignProjects}
+                canApprove={permittedActions.reassignApprove}
+                canReject={permittedActions.reassignReject}
+              />
+            ) : (
+              <UmwidmungPendingNotice
+                proposal={openReassignmentProposal}
+                proposerName={reassignProposerName}
+                projects={reassignProjects}
+              />
+            ))}
         </div>
 
         <aside className="lg:col-span-1">
@@ -283,13 +311,11 @@ function Timeline({ expense }: { expense: ExpenseDetail }) {
   );
 }
 
-// Matches the live approval_logs_action_check constraint exactly (verified
-// 2026-09-03, see d4u_backend/documentation/OPEN_DECISIONS.md) — not
-// mock-data.ts's ApprovalAction fixture, whose vocabulary ("approved",
+// Labels for the live approval_logs_action_check values (current list: the
+// latest d4u_backend migration that redefines it, 0028 as of this writing) —
+// not mock-data.ts's ApprovalAction fixture, whose vocabulary ("approved",
 // "rejected", "reconciled", "undo_approval", "reassigned") the real
-// constraint rejects. No log action exists for an Umwidmung *request*
-// (only its eventual execution) or for a generic "escalated" event — both
-// gaps on the backend side, not something to paper over here.
+// constraint rejects. Unknown values fall through to the raw action name.
 function actionLabel(a: string): string {
   switch (a) {
     case "submitted":
@@ -312,6 +338,12 @@ function actionLabel(a: string): string {
       return "Unterlagen eingegangen";
     case "marked_paid":
       return "Als bezahlt markiert";
+    case "reassignment_requested":
+      return "Umwidmung vorgeschlagen";
+    case "reassignment_approved":
+      return "Umwidmung genehmigt";
+    case "reassignment_rejected":
+      return "Umwidmung abgelehnt";
     case "reassigned_budget_line":
       return "Umgewidmet";
     case "reminder_sent":
@@ -727,184 +759,6 @@ function ReconcilePointerCard({ expense }: { expense: ExpenseDetail }) {
         </Button>
       </Link>
     </div>
-  );
-}
-
-// --- Umwidmung (reassign): propose + approve, two separate steps -----------
-
-function UmwidmungProposeCard({ expense }: { expense: ExpenseDetail }) {
-  const router = useRouter();
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleClick = async () => {
-    setSubmitting(true);
-    try {
-      await callBackend("expenses.reassign", { expenseId: expense.id });
-      toast.success("Umwidmung vorgeschlagen", {
-        description:
-          "Bitte informieren Sie die Buchhaltung direkt — offene Vorschläge werden aktuell noch nicht in einer eigenen Liste angezeigt.",
-      });
-      router.refresh();
-    } catch (error) {
-      toast.error("Konnte nicht vorgeschlagen werden", { description: backendErrorMessage(error) });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <section className="bg-card ring-1 ring-line card-shape p-6">
-      <h2 className="font-semibold text-sm mb-1">Umwidmung vorschlagen</h2>
-      <p className="text-xs text-muted-foreground mb-4 max-w-lg">
-        Schlägt vor, diesen Beleg einem anderen Projekt oder einer anderen Kostenstellen-Gruppe
-        zuzuordnen. Die Buchhaltung muss dies gesondert genehmigen, bevor sich an der Zuordnung
-        tatsächlich etwas ändert.
-      </p>
-      <Button variant="outline" onClick={handleClick} disabled={submitting}>
-        Umwidmung vorschlagen
-      </Button>
-    </section>
-  );
-}
-
-function UmwidmungApproveCard({
-  expense,
-  projects,
-}: {
-  expense: ExpenseDetail;
-  projects: UploadProject[];
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [projectId, setProjectId] = useState("");
-  const [groupId, setGroupId] = useState("");
-  const [costCenterId, setCostCenterId] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const project = projects.find((p) => p.id === projectId);
-  const groups = project?.groups ?? [];
-  const group = groups.find((g) => g.id === groupId);
-  const groupCostCenters = group?.costCenters ?? [];
-
-  const isValid = projectId && groupId && costCenterId;
-
-  const handleSubmit = async () => {
-    if (!isValid || !group) return;
-    setSubmitting(true);
-    try {
-      await callBackend("expenses.reassignApprove", {
-        expenseId: expense.id,
-        newProjectId: projectId,
-        newBudgetLineId: group.budgetLineId,
-        newCostCenterId: costCenterId,
-      });
-      toast.success("Umwidmung genehmigt", { description: "Der Beleg wurde neu zugeordnet." });
-      setOpen(false);
-      router.refresh();
-    } catch (error) {
-      toast.error("Umwidmung fehlgeschlagen", { description: backendErrorMessage(error) });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <section className="bg-card ring-1 ring-line card-shape p-6">
-      <h2 className="font-semibold text-sm mb-1">Umwidmung genehmigen</h2>
-      <p className="text-xs text-muted-foreground mb-4 max-w-lg">
-        Ordnet diesen Beleg einem neuen Projekt und einer neuen Kostenstellen-Gruppe zu. Nutzen Sie
-        dies erst, nachdem eine Umwidmung vorgeschlagen wurde — es gibt aktuell keine automatische
-        Warteliste offener Vorschläge.
-      </p>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        Umwidmung genehmigen
-      </Button>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Umwidmung genehmigen</DialogTitle>
-            <DialogDescription>
-              Wählen Sie die neue Zuordnung für diesen Beleg. Die Umwidmung wird sofort wirksam und
-              verschiebt das Budget dauerhaft auf die neue Kostenstellen-Gruppe.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-xs">Neues Projekt</Label>
-              <Select
-                value={projectId}
-                onValueChange={(v) => {
-                  setProjectId(v);
-                  setGroupId("");
-                  setCostCenterId("");
-                }}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Projekt auswählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.code} — {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Neue Kostenstellen-Gruppe</Label>
-              <Select
-                value={groupId}
-                onValueChange={(v) => {
-                  setGroupId(v);
-                  setCostCenterId("");
-                }}
-                disabled={!projectId}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue
-                    placeholder={projectId ? "Gruppe auswählen" : "Erst Projekt wählen"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Neue Kostenstelle</Label>
-              <Select value={costCenterId} onValueChange={setCostCenterId} disabled={!groupId}>
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue
-                    placeholder={groupId ? "Kostenstelle auswählen" : "Erst Gruppe wählen"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {groupCostCenters.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.code} — {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
-              Abbrechen
-            </Button>
-            <Button onClick={handleSubmit} disabled={!isValid || submitting}>
-              Umwidmung genehmigen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </section>
   );
 }
 

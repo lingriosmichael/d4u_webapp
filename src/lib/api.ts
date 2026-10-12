@@ -21,6 +21,7 @@ export type BackendEndpoint =
   | "expenses.reconcile"
   | "expenses.reassign"
   | "expenses.reassignApprove"
+  | "expenses.reassignReject"
   | "expenses.resubmit"
   | "expenses.attachReceipt"
   | "advances.split"
@@ -98,6 +99,8 @@ function resolveRoute(
       return { method: "POST", path: `/api/expenses/${expenseId}/reassign/request` };
     case "expenses.reassignApprove":
       return { method: "POST", path: `/api/expenses/${expenseId}/reassign/approve` };
+    case "expenses.reassignReject":
+      return { method: "POST", path: `/api/expenses/${expenseId}/reassign/reject` };
     case "expenses.attachReceipt":
       return { method: "POST", path: `/api/expenses/${expenseId}/receipt` };
     case "advances.split":
