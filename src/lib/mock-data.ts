@@ -82,14 +82,24 @@ export function fmtEUR(n: number): string {
   return n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
 }
 
+// Pinned so the server (UTC on Vercel) and the browser render the same text —
+// otherwise times are off by 1–2 h and React reports a hydration mismatch.
+const DISPLAY_TIME_ZONE = "Europe/Berlin";
+
 export function fmtDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return d.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: DISPLAY_TIME_ZONE,
+  });
 }
 
 export function fmtDateTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString("de-DE", {
+    timeZone: DISPLAY_TIME_ZONE,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
