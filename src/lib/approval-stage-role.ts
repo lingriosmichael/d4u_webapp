@@ -56,17 +56,6 @@ export const RESPONSIBLE_PARTY_LABELS: Record<ResponsibleParty, string> = {
   submitter: "Einreicher:in",
 };
 
-const CLOSED_STATUSES: ReadonlySet<ExpenseStatus> = new Set<ExpenseStatus>(["paid", "reconciled"]);
-
-/** "Zuständig" as shown in the Belege-Übersicht and its Excel export:
- * the responsible role, "Abgeschlossen" once nothing is left to do (paid /
- * reconciled), or "—" for a status nobody acts on. */
-export function responsibleLabelForStatus(status: ExpenseStatus): string {
-  if (CLOSED_STATUSES.has(status)) return "Abgeschlossen";
-  const party = responsiblePartyForStatus(status);
-  return party ? RESPONSIBLE_PARTY_LABELS[party] : "—";
-}
-
 export function responsiblePartyForStatus(status: ExpenseStatus): ResponsibleParty | null {
   return (
     (Object.keys(STATUSES_BY_RESPONSIBLE_PARTY) as ResponsibleParty[]).find((party) =>

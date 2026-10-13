@@ -1,28 +1,35 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import { statusLabel } from "@/lib/mock-data";
-import { RESPONSIBLE_PARTY_LABELS, responsibleLabelForStatus } from "@/lib/approval-stage-role";
+import { RESPONSIBLE_PARTY_LABELS } from "@/lib/approval-stage-role";
+import {
+  ROW_KIND_LABELS,
+  countsTowardTotal,
+  daysWaiting,
+  flattenStructuredOverview,
+  rowKind,
+  structureExpenseOverview,
+  waitingOn,
+  type ExpenseOverviewRow,
+} from "@/lib/expense-overview-structure";
 import type {
   ExpenseOverviewFilterOptions,
   ExpenseOverviewFilters,
-  ExpenseOverviewRow,
 } from "@/lib/supabase/queries/visualization";
 
 // The Belege-Übersicht as an .xlsx file: exactly the rows the filtered list
 // shows, for Accounting/CEO to work with in Excel (funder reports, checks).
 // Sheet "Belege" is a plain table starting at A1 — one header row, one row
 // per Beleg, real numbers and dates — so it can be sorted, filtered and
-// pivoted without cleaning it up first. Who exported it, when, and with
-// which filters goes on a second sheet, "Info", rather than above the table.
+// pivoted without cleaning it up first. Rows come in the page's order (a
+// split Vorschuss followed by its line items), and "Zählt zur Summe" carries
+// the page's counting rule so a pivot or SUMIFS can't double-count a
+// Vorschuss. Who exported it, when, with which filters, and the total go on
+// a second sheet, "Info", rather than above the table.
 
 const DISPLAY_TIME_ZONE = "Europe/Berlin";
 const EURO_FORMAT = '#,##0.00 "€"';
 const DATE_FORMAT = "dd.mm.yyyy";
-
-const EXPENSE_TYPE_LABELS: Record<ExpenseOverviewRow["expenseType"], string> = {
-  standard: "Standardbeleg",
-  partner_advance: "Partner-Vorschuss",
-};
 
 const COLUMNS: Array<{ header: string; key: string; width: number }> = [
   { header: "Projekt", key: "projectCode", width: 10 },
@@ -30,13 +37,18 @@ const COLUMNS: Array<{ header: string; key: string; width: number }> = [
   { header: "Kostenstelle", key: "costCenter", width: 24 },
   { header: "Beschreibung", key: "description", width: 42 },
   { header: "Lieferant / Empfänger", key: "vendor", width: 26 },
-  { header: "Art", key: "expenseType", width: 18 },
+  { header: "Art", key: "kind", width: 19 },
   { header: "Betrag (EUR)", key: "amount", width: 15 },
+  { header: "Zählt zur Summe", key: "counts", width: 16 },
   { header: "Status", key: "status", width: 22 },
-  { header: "Zuständig", key: "responsible", width: 18 },
+  { header: "Status seit", key: "statusSince", width: 13 },
+  { header: "Tage im Status", key: "daysWaiting", width: 15 },
+  { header: "Wartet auf", key: "waitingOn", width: 22 },
   { header: "Eingereicht von", key: "submittedBy", width: 24 },
   { header: "Eingereicht am", key: "createdAt", width: 15 },
+  { header: "Gehört zu Vorschuss", key: "parentAdvance", width: 34 },
   { header: "Beleg-ID", key: "id", width: 38 },
+  { header: "Vorschuss-ID", key: "parentAdvanceId", width: 38 },
 ];
 
 /** The calendar day in Berlin, as a UTC-midnight Date: Excel dates carry no
@@ -68,7 +80,7 @@ export function describeExpenseOverviewFilters(
   return [
     ["Status", status],
     [
-      "Zuständig",
+      "Wartet auf",
       filters.responsibleParty ? RESPONSIBLE_PARTY_LABELS[filters.responsibleParty] : "Alle",
     ],
     ["Projekt", project ? `${project.code} · ${project.name}` : "Alle"],
@@ -98,7 +110,9 @@ export async function buildExpenseOverviewWorkbook(input: {
     views: [{ state: "frozen", ySplit: 1 }],
   });
   sheet.columns = COLUMNS;
-  for (const row of input.rows) {
+  const overview = structureExpenseOverview(input.rows);
+  for (const row of flattenStructuredOverview(overview)) {
+    const days = daysWaiting(row, input.exportedAt);
     sheet.addRow({
       projectCode: row.projectCode,
       projectName: row.projectName,
@@ -107,17 +121,23 @@ export async function buildExpenseOverviewWorkbook(input: {
       costCenter: row.costCenterCode ? `${row.costCenterCode} · ${row.costCenterName}` : null,
       description: row.description,
       vendor: row.vendorName,
-      expenseType: EXPENSE_TYPE_LABELS[row.expenseType],
+      kind: ROW_KIND_LABELS[rowKind(row)],
       amount: row.amount,
+      counts: countsTowardTotal(row) ? "Ja" : "Nein",
       status: statusLabel(row.status),
-      responsible: responsibleLabelForStatus(row.status),
+      statusSince: days === null ? null : berlinCalendarDate(row.statusSince),
+      daysWaiting: days,
+      waitingOn: waitingOn(row),
       submittedBy: row.submittedByName,
       createdAt: berlinCalendarDate(row.createdAt),
+      parentAdvance: row.reconcilesAdvanceId ? row.parentAdvanceDescription : null,
       id: row.id,
+      parentAdvanceId: row.reconcilesAdvanceId,
     });
   }
   sheet.getColumn("amount").numFmt = EURO_FORMAT;
   sheet.getColumn("createdAt").numFmt = DATE_FORMAT;
+  sheet.getColumn("statusSince").numFmt = DATE_FORMAT;
   sheet.getRow(1).font = { bold: true };
   sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUMNS.length } };
 
@@ -128,6 +148,7 @@ export async function buildExpenseOverviewWorkbook(input: {
   ];
   const lastDataRow = input.rows.length + 1;
   const amountColumn = sheet.getColumn("amount").letter;
+  const countsColumn = sheet.getColumn("counts").letter;
   const exported = input.exportedAt.toLocaleString("de-DE", {
     day: "2-digit",
     month: "2-digit",
@@ -140,22 +161,27 @@ export async function buildExpenseOverviewWorkbook(input: {
   info.addRow({});
   info.addRow({ label: "Exportiert am", value: exported });
   info.addRow({ label: "Exportiert von", value: input.exportedBy });
-  info.addRow({ label: "Anzahl Belege", value: input.rows.length });
+  info.addRow({ label: "Anzahl Einträge", value: overview.rowCount });
   const total = info.addRow({
     label: "Summe Betrag (EUR)",
     value:
       input.rows.length > 0
         ? {
-            formula: `SUM(Belege!${amountColumn}2:${amountColumn}${lastDataRow})`,
-            result: input.rows.reduce((sum, r) => sum + r.amount, 0),
+            formula: `SUMIFS(Belege!${amountColumn}2:${amountColumn}${lastDataRow},Belege!${countsColumn}2:${countsColumn}${lastDataRow},"Ja")`,
+            result: overview.total,
           }
         : 0,
   });
   total.getCell("value").numFmt = EURO_FORMAT;
+  info.addRow({
+    label: "Hinweis",
+    value:
+      "Die Summe zählt jede Ausgabe einmal: Ein aufgeteilter Partner-Vorschuss zählt über seine Positionen (Zählt zur Summe = Ja), nicht zusätzlich mit seinem ausgezahlten Betrag.",
+  });
   info.addRow({});
   info.addRow({ label: "Filter" }).font = { bold: true };
   for (const [label, value] of input.filters) info.addRow({ label, value });
-  info.getColumn("value").alignment = { horizontal: "left" };
+  info.getColumn("value").alignment = { horizontal: "left", vertical: "top", wrapText: true };
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

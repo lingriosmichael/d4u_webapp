@@ -19,7 +19,14 @@ import { ExpenseFilterBar } from "./expense-filter-bar";
 import { computeBudgetFigures, BUDGET_LABELS, type BudgetFigures } from "@/lib/budget-figures";
 import { projectsVisibleTo } from "@/lib/project-scoped-roles";
 import { VisualizationTabs } from "./visualization-tabs";
-import { responsibleLabelForStatus } from "@/lib/approval-stage-role";
+import {
+  structureExpenseOverview,
+  isSplitAdvance,
+  rowKind,
+  waitingOn,
+  daysWaiting,
+  formatDaysWaiting,
+} from "@/lib/expense-overview-structure";
 import { canSeeOrganisationOverviews } from "@/lib/overview-access";
 
 // Converted from lib/mock-data.ts to real Supabase reads (server-fetched,
@@ -236,91 +243,56 @@ function ExpenseOverviewSection({
   costCenters: Array<{ id: string; code: string; name: string }>;
   projects: Array<{ id: string; code: string; name: string }>;
 }) {
-  const byProject = new Map<
-    string,
-    { projectCode: string; projectName: string; rows: ExpenseOverviewRow[] }
-  >();
-  for (const e of expenses) {
-    const group = byProject.get(e.projectId) ?? {
-      projectCode: e.projectCode,
-      projectName: e.projectName,
-      rows: [],
-    };
-    group.rows.push(e);
-    byProject.set(e.projectId, group);
-  }
+  const overview = structureExpenseOverview(expenses);
+  const now = new Date();
 
   return (
     <div>
       <ExpenseFilterBar
         costCenters={costCenters}
         projects={projects}
-        resultCount={expenses.length}
+        rowCount={overview.rowCount}
+        total={overview.total}
+        hasSplitAdvances={overview.hasSplitAdvances}
       />
 
-      {expenses.length === 0 ? (
+      {overview.groups.length === 0 ? (
         <div className="bg-card ring-1 ring-line card-shape p-6 text-sm text-muted-foreground">
           Keine Belege für die gewählten Filter.
         </div>
       ) : (
         <div className="space-y-6">
-          {[...byProject.entries()].map(([projectId, group]) => (
-            <div key={projectId}>
+          {overview.groups.map((group) => (
+            <div key={group.projectId}>
               <div className="text-xs font-mono text-muted-foreground mb-2">
                 {group.projectCode} · {group.projectName}
               </div>
-              <div className="bg-card ring-1 ring-line card-shape overflow-hidden">
+              <div className="bg-card ring-1 ring-line card-shape overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground bg-secondary/40">
                     <tr>
-                      <th className="text-left px-6 py-3">Kostenstelle</th>
-                      <th className="text-left px-6 py-3">Beschreibung</th>
-                      <th className="text-right px-6 py-3">Betrag</th>
-                      <th className="text-left px-6 py-3">Status</th>
-                      <th className="text-left px-6 py-3">Zuständig</th>
-                      <th className="text-left px-6 py-3">Eingereicht am</th>
+                      <th className="text-left px-4 py-3">Kostenstelle</th>
+                      <th className="text-left px-4 py-3 min-w-[13rem]">Beschreibung</th>
+                      <th className="text-right px-4 py-3">Betrag</th>
+                      <th className="text-left px-4 py-3">Status</th>
+                      <th className="text-left px-4 py-3">Wartet auf</th>
+                      <th className="text-left px-4 py-3">Seit</th>
+                      <th className="text-left px-4 py-3">Eingereicht von</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {group.rows.map((e) => (
-                      <tr key={e.id} className="border-t border-line hover:bg-secondary/20">
-                        <td className="px-6 py-3">
-                          <Link href={`/expenses/${e.id}`} className="block">
-                            {e.costCenterCode ? `${e.costCenterCode} · ${e.costCenterName}` : "—"}
-                          </Link>
-                        </td>
-                        <td className="px-6 py-3">
-                          <Link href={`/expenses/${e.id}`} className="block">
-                            {e.description}
-                            {e.vendorName && (
-                              <span className="text-muted-foreground"> · {e.vendorName}</span>
-                            )}
-                          </Link>
-                        </td>
-                        <td className="px-6 py-3 text-right font-mono">
-                          <Link href={`/expenses/${e.id}`} className="block">
-                            {fmtEUR(e.amount)}
-                          </Link>
-                        </td>
-                        <td className="px-6 py-3">
-                          <Link href={`/expenses/${e.id}`} className="block">
-                            <StatusPill tone={statusTone(e.status)}>
-                              {statusLabel(e.status)}
-                            </StatusPill>
-                          </Link>
-                        </td>
-                        <td className="px-6 py-3 text-muted-foreground">
-                          <Link href={`/expenses/${e.id}`} className="block">
-                            {responsibleLabelForStatus(e.status)}
-                          </Link>
-                        </td>
-                        <td className="px-6 py-3 text-muted-foreground">
-                          <Link href={`/expenses/${e.id}`} className="block">
-                            {fmtDate(e.createdAt)}
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
+                    {group.items.flatMap((item) => [
+                      <OverviewTableRow
+                        key={item.row.id}
+                        row={item.row}
+                        variant={isSplitAdvance(item.row) ? "advance" : "item"}
+                        lineCount={item.children.length}
+                        now={now}
+                      />,
+                      ...item.children.map((child) => (
+                        <OverviewTableRow key={child.id} row={child} variant="line" now={now} />
+                      )),
+                    ])}
                   </tbody>
                 </table>
               </div>
@@ -329,6 +301,114 @@ function ExpenseOverviewSection({
         </div>
       )}
     </div>
+  );
+}
+
+// variant: "advance" = a split partner advance, shown as the heading of its
+// line items (its amount is represented by them, so it's muted and not in
+// the total); "line" = one of those line items, nested under it; "item" =
+// everything else, including a line item whose advance is filtered out.
+function OverviewTableRow({
+  row,
+  variant,
+  lineCount = 0,
+  now,
+}: {
+  row: ExpenseOverviewRow;
+  variant: "item" | "advance" | "line";
+  lineCount?: number;
+  now: Date;
+}) {
+  const href = `/expenses/${row.id}`;
+  const kind = rowKind(row);
+  const waiting = waitingOn(row);
+  const costCenter = row.costCenterCode
+    ? `${row.costCenterCode} · ${row.costCenterName}`
+    : kind === "advance_line"
+      ? "noch offen"
+      : "—";
+
+  return (
+    <tr
+      className={cn(
+        "border-t border-line hover:bg-secondary/20",
+        variant === "line" && "bg-secondary/10",
+      )}
+    >
+      <td className={cn("px-4 py-3", variant === "line" && "pl-8")}>
+        <Link
+          href={href}
+          className={cn(
+            "block",
+            variant === "line" && "border-l-2 border-line pl-3",
+            !row.costCenterCode && "text-muted-foreground",
+            kind === "advance_line" && !row.costCenterCode && "italic",
+          )}
+        >
+          {costCenter}
+        </Link>
+      </td>
+      <td className="px-4 py-3">
+        <Link href={href} className="block">
+          {row.description}
+          {row.vendorName && <span className="text-muted-foreground"> · {row.vendorName}</span>}
+          {variant === "advance" && (
+            <span className="block text-xs text-muted-foreground mt-0.5">
+              Partner-Vorschuss · {lineCount === 1 ? "1 Position" : `${lineCount} Positionen`}
+            </span>
+          )}
+          {variant === "item" && kind === "partner_advance" && (
+            <span className="block text-xs text-muted-foreground mt-0.5">Partner-Vorschuss</span>
+          )}
+          {variant === "item" && kind === "advance_line" && row.parentAdvanceDescription && (
+            <span className="block text-xs text-muted-foreground mt-0.5">
+              Position aus: {row.parentAdvanceDescription}
+            </span>
+          )}
+        </Link>
+      </td>
+      <td
+        className={cn(
+          "px-4 py-3 text-right font-mono whitespace-nowrap",
+          variant === "advance" && "text-muted-foreground",
+        )}
+      >
+        <Link
+          href={href}
+          className="block"
+          title={
+            variant === "advance"
+              ? "Ausgezahlter Vorschuss — zählt über seine Positionen, nicht zusätzlich."
+              : undefined
+          }
+        >
+          {fmtEUR(row.amount)}
+        </Link>
+      </td>
+      <td className="px-4 py-3">
+        <Link href={href} className="block">
+          <StatusPill tone={statusTone(row.status)}>{statusLabel(row.status)}</StatusPill>
+        </Link>
+      </td>
+      <td className="px-4 py-3">
+        <Link href={href} className="block">
+          {waiting ?? ""}
+        </Link>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap tabular-nums">
+        <Link href={href} className="block">
+          {formatDaysWaiting(daysWaiting(row, now))}
+        </Link>
+      </td>
+      <td className="px-4 py-3">
+        <Link href={href} className="block">
+          {row.submittedByName ?? "—"}
+          <span className="block text-xs text-muted-foreground tabular-nums">
+            {fmtDate(row.createdAt)}
+          </span>
+        </Link>
+      </td>
+    </tr>
   );
 }
 

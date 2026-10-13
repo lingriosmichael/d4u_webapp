@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import ExcelJS from "exceljs";
-import { ALL_EXPENSE_STATUSES, OPEN_EXPENSE_STATUSES, type ExpenseStatus } from "@/lib/mock-data";
-import { responsibleLabelForStatus } from "@/lib/approval-stage-role";
-import type { ExpenseOverviewRow } from "@/lib/supabase/queries/visualization";
+import type { ExpenseOverviewRow } from "@/lib/expense-overview-structure";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
@@ -24,16 +22,20 @@ function row(overrides: Partial<ExpenseOverviewRow>): ExpenseOverviewRow {
     costCenterCode: "3200",
     costCenterName: "Verpflegung",
     status: "accounting_approval",
-    responsibleParty: "accounting",
     submittedByName: "Thomas Meier",
     amount: 1500.5,
     description: "Catering Fachtag",
     vendorName: "Bäckerei Schmidt",
     expenseType: "standard",
     createdAt: "2026-10-12T23:30:00Z",
+    statusSince: "2026-10-12T23:30:00Z",
+    reconcilesAdvanceId: null,
+    parentAdvanceDescription: null,
     ...overrides,
   };
 }
+
+const EXPORTED_AT = new Date("2026-10-13T10:40:00Z");
 
 async function readBack(buffer: Buffer) {
   const workbook = new ExcelJS.Workbook();
@@ -44,58 +46,23 @@ async function readBack(buffer: Buffer) {
   return workbook;
 }
 
-describe("Zuständig", () => {
-  it("names someone for every open status except the never-written 'submitted'", () => {
-    const unassigned = OPEN_EXPENSE_STATUSES.filter(
-      (s) => s !== "submitted" && responsibleLabelForStatus(s) === "—",
-    );
-    expect(unassigned).toEqual([]);
-  });
-
-  it.each<[ExpenseStatus, string]>([
-    ["ceo_approval", "Geschäftsführung"],
-    ["accounting_approval", "Buchhaltung"],
-    ["needs_changes", "Einreicher:in"],
-    ["reconciliation_in_progress", "Einreicher:in"],
-    ["awaiting_receipt", "Einreicher:in"],
-    ["reconciliation_submitted", "Buchhaltung"],
-    ["paid", "Abgeschlossen"],
-    ["reconciled", "Abgeschlossen"],
-  ])("%s → %s", (status, label) => {
-    expect(responsibleLabelForStatus(status)).toBe(label);
-  });
-
-  it("covers every status the filter bar offers", () => {
-    for (const status of ALL_EXPENSE_STATUSES) {
-      expect(typeof responsibleLabelForStatus(status)).toBe("string");
-    }
-  });
-});
+function cellsByHeader(sheet: ExcelJS.Worksheet, rowNumber: number): Record<string, unknown> {
+  const headers = sheet.getRow(1).values as unknown[];
+  const values = sheet.getRow(rowNumber).values as unknown[];
+  return Object.fromEntries(headers.slice(1).map((h, i) => [String(h), values[i + 1] ?? null]));
+}
 
 describe("buildExpenseOverviewWorkbook", () => {
   it("writes one header row and one row per Beleg, with real numbers and dates", async () => {
     const buffer = await buildExpenseOverviewWorkbook({
-      rows: [
-        row({}),
-        row({
-          id: "a59d7e60-64b9-4a7b-9d2f-45d9c3782d2f",
-          status: "reconciliation_in_progress",
-          expenseType: "partner_advance",
-          costCenterCode: null,
-          costCenterName: null,
-          vendorName: null,
-          amount: 3,
-        }),
-      ],
+      rows: [row({})],
       filters: [["Status", "Offen"]],
       exportedBy: "Katrina Zuchina",
-      exportedAt: new Date("2026-10-13T10:40:00Z"),
+      exportedAt: EXPORTED_AT,
     });
-    const workbook = await readBack(buffer);
-    const sheet = workbook.getWorksheet("Belege")!;
+    const sheet = (await readBack(buffer)).getWorksheet("Belege")!;
 
-    expect(sheet.getRow(1).values).toEqual([
-      undefined,
+    expect((sheet.getRow(1).values as unknown[]).slice(1)).toEqual([
       "Projekt",
       "Projektname",
       "Kostenstelle",
@@ -103,62 +70,146 @@ describe("buildExpenseOverviewWorkbook", () => {
       "Lieferant / Empfänger",
       "Art",
       "Betrag (EUR)",
+      "Zählt zur Summe",
       "Status",
-      "Zuständig",
+      "Status seit",
+      "Tage im Status",
+      "Wartet auf",
       "Eingereicht von",
       "Eingereicht am",
+      "Gehört zu Vorschuss",
       "Beleg-ID",
+      "Vorschuss-ID",
     ]);
-    expect(sheet.rowCount).toBe(3);
 
-    const first = sheet.getRow(2);
-    expect(first.getCell(3).value).toBe("3200 · Verpflegung");
-    expect(first.getCell(7).value).toBe(1500.5);
-    expect(first.getCell(7).numFmt).toBe('#,##0.00 "€"');
-    expect(first.getCell(8).value).toBe("Buchhaltungsprüfung");
-    expect(first.getCell(9).value).toBe("Buchhaltung");
+    const cells = cellsByHeader(sheet, 2);
+    expect(cells["Kostenstelle"]).toBe("3200 · Verpflegung");
+    expect(cells["Art"]).toBe("Standardbeleg");
+    expect(cells["Betrag (EUR)"]).toBe(1500.5);
+    expect(sheet.getRow(2).getCell(7).numFmt).toBe('#,##0.00 "€"');
+    expect(cells["Zählt zur Summe"]).toBe("Ja");
+    expect(cells["Status"]).toBe("Buchhaltungsprüfung");
+    expect(cells["Wartet auf"]).toBe("Buchhaltung");
     // 23:30 UTC on 12 Oct is already 13 Oct in Berlin — the day the app shows.
-    expect((first.getCell(11).value as Date).toISOString()).toBe("2026-10-13T00:00:00.000Z");
-    expect(first.getCell(11).numFmt).toBe("dd.mm.yyyy");
+    expect((cells["Eingereicht am"] as Date).toISOString()).toBe("2026-10-13T00:00:00.000Z");
+    expect((cells["Status seit"] as Date).toISOString()).toBe("2026-10-13T00:00:00.000Z");
+    expect(cells["Tage im Status"]).toBe(0);
+    expect(cells["Gehört zu Vorschuss"]).toBeNull();
+  });
 
-    const advance = sheet.getRow(3);
-    expect(advance.getCell(3).value).toBeNull();
-    expect(advance.getCell(6).value).toBe("Partner-Vorschuss");
-    expect(advance.getCell(9).value).toBe("Einreicher:in");
+  it("lists a split Vorschuss before its lines and counts it once", async () => {
+    const advance = row({
+      id: "adv",
+      expenseType: "partner_advance",
+      status: "reconciliation_in_progress",
+      amount: 3,
+      description: "Vorschuss Kulturfonds",
+      costCenterCode: null,
+      costCenterName: null,
+      vendorName: null,
+    });
+    const lines = ["l1", "l2", "l3"].map((id, i) =>
+      row({
+        id,
+        status: "awaiting_receipt",
+        amount: 1,
+        description: `Position ${i + 1}`,
+        reconcilesAdvanceId: "adv",
+        parentAdvanceDescription: "Vorschuss Kulturfonds",
+        costCenterCode: null,
+        costCenterName: null,
+        vendorName: null,
+        createdAt: `2026-10-13T10:0${i}:00Z`,
+      }),
+    );
+    const workbook = await readBack(
+      await buildExpenseOverviewWorkbook({
+        rows: [lines[1], advance, lines[0], lines[2]],
+        filters: [],
+        exportedBy: "Katrina Zuchina",
+        exportedAt: EXPORTED_AT,
+      }),
+    );
+    const sheet = workbook.getWorksheet("Belege")!;
+
+    expect([2, 3, 4, 5].map((n) => cellsByHeader(sheet, n)["Beleg-ID"])).toEqual([
+      "adv",
+      "l1",
+      "l2",
+      "l3",
+    ]);
+    const advanceCells = cellsByHeader(sheet, 2);
+    expect(advanceCells["Art"]).toBe("Partner-Vorschuss");
+    expect(advanceCells["Zählt zur Summe"]).toBe("Nein");
+    expect(advanceCells["Kostenstelle"]).toBeNull();
+    const lineCells = cellsByHeader(sheet, 3);
+    expect(lineCells["Art"]).toBe("Vorschuss-Position");
+    expect(lineCells["Zählt zur Summe"]).toBe("Ja");
+    expect(lineCells["Wartet auf"]).toBe("Thomas Meier");
+    expect(lineCells["Gehört zu Vorschuss"]).toBe("Vorschuss Kulturfonds");
+    expect(lineCells["Vorschuss-ID"]).toBe("adv");
+
+    const info = new Map<string, unknown>();
+    workbook
+      .getWorksheet("Info")!
+      .eachRow((r) => info.set(String(r.getCell(1).value), r.getCell(2).value));
+    expect(info.get("Anzahl Einträge")).toBe(4);
+    expect(info.get("Summe Betrag (EUR)")).toMatchObject({
+      formula: 'SUMIFS(Belege!G2:G5,Belege!H2:H5,"Ja")',
+      result: 3,
+    });
+  });
+
+  it("leaves Wartet auf and the waiting time empty once a Beleg is finished", async () => {
+    const sheet = (
+      await readBack(
+        await buildExpenseOverviewWorkbook({
+          rows: [row({ status: "paid" })],
+          filters: [],
+          exportedBy: "Katrina Zuchina",
+          exportedAt: EXPORTED_AT,
+        }),
+      )
+    ).getWorksheet("Belege")!;
+    const cells = cellsByHeader(sheet, 2);
+    expect(cells["Wartet auf"]).toBeNull();
+    expect(cells["Tage im Status"]).toBeNull();
+    expect(cells["Status seit"]).toBeNull();
   });
 
   it("puts who, when, how many, the total and the filters on the Info sheet", async () => {
-    const buffer = await buildExpenseOverviewWorkbook({
-      rows: [row({ amount: 10 }), row({ amount: 2.5 })],
-      filters: [
-        ["Status", "Alle"],
-        ["Projekt", "BIB-24 · Bildungsinitiative Berlin"],
-      ],
-      exportedBy: "Katrina Zuchina",
-      exportedAt: new Date("2026-10-13T10:40:00Z"),
-    });
-    const info = (await readBack(buffer)).getWorksheet("Info")!;
-    const values = new Map<string, unknown>();
-    info.eachRow((r) => values.set(String(r.getCell(1).value), r.getCell(2).value));
+    const workbook = await readBack(
+      await buildExpenseOverviewWorkbook({
+        rows: [row({ amount: 10 }), row({ id: "b", amount: 2.5 })],
+        filters: [
+          ["Status", "Alle"],
+          ["Projekt", "BIB-24 · Bildungsinitiative Berlin"],
+        ],
+        exportedBy: "Katrina Zuchina",
+        exportedAt: EXPORTED_AT,
+      }),
+    );
+    const info = new Map<string, unknown>();
+    workbook
+      .getWorksheet("Info")!
+      .eachRow((r) => info.set(String(r.getCell(1).value), r.getCell(2).value));
 
-    expect(values.get("Exportiert am")).toBe("13.10.2026, 12:40");
-    expect(values.get("Exportiert von")).toBe("Katrina Zuchina");
-    expect(values.get("Anzahl Belege")).toBe(2);
-    expect(values.get("Summe Betrag (EUR)")).toMatchObject({
-      formula: "SUM(Belege!G2:G3)",
-      result: 12.5,
-    });
-    expect(values.get("Projekt")).toBe("BIB-24 · Bildungsinitiative Berlin");
+    expect(info.get("Exportiert am")).toBe("13.10.2026, 12:40");
+    expect(info.get("Exportiert von")).toBe("Katrina Zuchina");
+    expect(info.get("Anzahl Einträge")).toBe(2);
+    expect(info.get("Summe Betrag (EUR)")).toMatchObject({ result: 12.5 });
+    expect(info.get("Projekt")).toBe("BIB-24 · Bildungsinitiative Berlin");
   });
 
   it("still produces a valid file with no rows", async () => {
-    const buffer = await buildExpenseOverviewWorkbook({
-      rows: [],
-      filters: [],
-      exportedBy: "Katrina Zuchina",
-      exportedAt: new Date("2026-10-13T10:40:00Z"),
-    });
-    const workbook = await readBack(buffer);
+    const workbook = await readBack(
+      await buildExpenseOverviewWorkbook({
+        rows: [],
+        filters: [],
+        exportedBy: "Katrina Zuchina",
+        exportedAt: EXPORTED_AT,
+      }),
+    );
     expect(workbook.getWorksheet("Belege")!.rowCount).toBe(1);
   });
 });
@@ -186,7 +237,7 @@ describe("helpers", () => {
     );
     expect(described).toEqual([
       ["Status", "Offen"],
-      ["Zuständig", "Einreicher:in"],
+      ["Wartet auf", "Einreicher:in"],
       ["Projekt", "BIB-24 · Bildungsinitiative Berlin"],
       ["Kostenstelle", "Alle"],
       ["Von", "01.10.2026"],

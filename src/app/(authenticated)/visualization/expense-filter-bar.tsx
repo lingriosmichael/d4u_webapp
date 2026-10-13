@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  fmtEUR,
   statusLabel,
   OPEN_EXPENSE_STATUSES,
   ALL_EXPENSE_STATUSES,
@@ -30,11 +31,16 @@ const FILTER_PARAMS = ["status", "responsible", "costCenter", "expenseProject", 
 export function ExpenseFilterBar({
   costCenters,
   projects,
-  resultCount,
+  rowCount,
+  total,
+  hasSplitAdvances,
 }: {
   costCenters: Array<{ id: string; code: string; name: string }>;
   projects: Array<{ id: string; code: string; name: string }>;
-  resultCount: number;
+  rowCount: number;
+  /** Sum of the rows that count once (see expense-overview-structure.ts). */
+  total: number;
+  hasSplitAdvances: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -60,7 +66,9 @@ export function ExpenseFilterBar({
     <div className="space-y-3 mb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-xs text-muted-foreground tabular-nums">
-          {resultCount === 1 ? "1 Beleg" : `${resultCount} Belege`}
+          {rowCount === 1 ? "1 Eintrag" : `${rowCount} Einträge`} · Summe{" "}
+          <span className="text-foreground font-medium">{fmtEUR(total)}</span>
+          {hasSplitAdvances && " · aufgeteilte Vorschüsse zählen über ihre Positionen"}
         </span>
         <div className="flex items-center gap-2">
           {hasFilters && (
@@ -68,7 +76,7 @@ export function ExpenseFilterBar({
               Filter zurücksetzen
             </Button>
           )}
-          {resultCount > 0 ? (
+          {rowCount > 0 ? (
             <Button asChild variant="outline" size="sm">
               <a href={exportHref}>
                 <Download /> Als Excel exportieren
@@ -85,7 +93,7 @@ export function ExpenseFilterBar({
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <Field label="Status">
           <Select
-            value={searchParams.get("status") ?? "open"}
+            value={searchParams.get("status") || "open"}
             onValueChange={(v) => setParam("status", v === "open" ? undefined : v)}
           >
             <SelectTrigger className="w-full">
@@ -108,9 +116,9 @@ export function ExpenseFilterBar({
           </Select>
         </Field>
 
-        <Field label="Zuständig">
+        <Field label="Wartet auf">
           <Select
-            value={searchParams.get("responsible") ?? "all"}
+            value={searchParams.get("responsible") || "all"}
             onValueChange={(v) => setParam("responsible", v === "all" ? undefined : v)}
           >
             <SelectTrigger className="w-full">
@@ -129,7 +137,7 @@ export function ExpenseFilterBar({
 
         <Field label="Projekt">
           <Select
-            value={searchParams.get("expenseProject") ?? "all"}
+            value={searchParams.get("expenseProject") || "all"}
             onValueChange={(v) => setParam("expenseProject", v === "all" ? undefined : v)}
           >
             <SelectTrigger className="w-full">
@@ -148,7 +156,7 @@ export function ExpenseFilterBar({
 
         <Field label="Kostenstelle">
           <Select
-            value={searchParams.get("costCenter") ?? "all"}
+            value={searchParams.get("costCenter") || "all"}
             onValueChange={(v) => setParam("costCenter", v === "all" ? undefined : v)}
           >
             <SelectTrigger className="w-full">

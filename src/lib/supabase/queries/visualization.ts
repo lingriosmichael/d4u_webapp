@@ -6,11 +6,8 @@ import {
   type ExpenseStatus,
   type ExpenseType,
 } from "@/lib/mock-data";
-import {
-  responsiblePartyForStatus,
-  statusesForResponsibleParty,
-  type ResponsibleParty,
-} from "@/lib/approval-stage-role";
+import { statusesForResponsibleParty, type ResponsibleParty } from "@/lib/approval-stage-role";
+import type { ExpenseOverviewRow } from "@/lib/expense-overview-structure";
 
 // Data-access layer for Auswertung. Read-only — no write actions on this
 // screen, so no d4u_backend calls here, only direct Supabase reads (the
@@ -212,7 +209,7 @@ export async function getProjectDrilldown(projectId: string): Promise<{
 //
 // Deliberately does NOT read/filter on expenses.assigned_approver: verified
 // against the live backend (see approval-stage-role.ts) that no route ever
-// writes that column, so it's stale on every real row. "Zuständigkeit" is
+// writes that column, so it's stale on every real row. "Wartet auf" is
 // derived from status via responsiblePartyForStatus instead — the same
 // source of truth the dashboard's needs-action logic uses.
 
@@ -279,23 +276,9 @@ function resolveStatusFilter(filters: ExpenseOverviewFilters): ExpenseStatus[] {
   return statuses;
 }
 
-export interface ExpenseOverviewRow {
-  id: string;
-  projectId: string;
-  projectCode: string;
-  projectName: string;
-  costCenterId: string | null;
-  costCenterCode: string | null;
-  costCenterName: string | null;
-  status: ExpenseStatus;
-  responsibleParty: ResponsibleParty | null;
-  submittedByName: string | null;
-  amount: number;
-  description: string;
-  vendorName: string | null;
-  expenseType: ExpenseType;
-  createdAt: string;
-}
+// Row shape lives with the grouping/counting rules that use it
+// (src/lib/expense-overview-structure.ts), re-exported here for callers.
+export type { ExpenseOverviewRow } from "@/lib/expense-overview-structure";
 
 export interface ExpenseOverviewFilterOptions {
   costCenters: Array<{ id: string; code: string; name: string }>;
@@ -318,10 +301,13 @@ export async function getExpenseOverview(
   if (statuses.length === 0) return [];
 
   const supabase = await createClient();
+  // approval_logs is embedded (not a second .in() query by id) so a long
+  // result list can't overflow the request URL; it supplies when each
+  // Beleg entered its current status.
   let query = supabase
     .from("expenses")
     .select(
-      "id, project_id, cost_center_id, status, submitted_by, amount, description, vendor_name, expense_type, created_at",
+      "id, project_id, cost_center_id, status, submitted_by, amount, description, vendor_name, expense_type, created_at, reconciles_advance_id, approval_logs(to_status, created_at)",
     )
     .in("status", statuses)
     .order("created_at", { ascending: false });
@@ -335,6 +321,7 @@ export async function getExpenseOverview(
   if (error) throw error;
   const rows = data ?? [];
 
+  const shownIds = new Set(rows.map((r) => r.id));
   const projectIds = [...new Set(rows.map((r) => r.project_id))];
   const costCenterIds = [
     ...new Set(rows.map((r) => r.cost_center_id).filter((id): id is string => !!id)),
@@ -342,29 +329,45 @@ export async function getExpenseOverview(
   const submitterIds = [
     ...new Set(rows.map((r) => r.submitted_by).filter((id): id is string => !!id)),
   ];
+  // Line items whose advance isn't in this result (filtered out by status,
+  // say) still name the advance they belong to.
+  const missingParentIds = [
+    ...new Set(
+      rows
+        .map((r) => r.reconciles_advance_id as string | null)
+        .filter((id): id is string => !!id && !shownIds.has(id)),
+    ),
+  ];
 
-  const [{ data: projects }, { data: costCenters }, { data: users }] = await Promise.all([
-    projectIds.length
-      ? supabase.from("projects").select("id, code, name").in("id", projectIds)
-      : Promise.resolve({ data: [] as { id: string; code: string; name: string }[] }),
-    costCenterIds.length
-      ? supabase.from("cost_centers").select("id, code, name").in("id", costCenterIds)
-      : Promise.resolve({ data: [] as { id: string; code: string; name: string }[] }),
-    submitterIds.length
-      ? supabase.from("users").select("id, first_name, last_name").in("id", submitterIds)
-      : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
-  ]);
+  const [{ data: projects }, { data: costCenters }, { data: users }, { data: parents }] =
+    await Promise.all([
+      projectIds.length
+        ? supabase.from("projects").select("id, code, name").in("id", projectIds)
+        : Promise.resolve({ data: [] as { id: string; code: string; name: string }[] }),
+      costCenterIds.length
+        ? supabase.from("cost_centers").select("id, code, name").in("id", costCenterIds)
+        : Promise.resolve({ data: [] as { id: string; code: string; name: string }[] }),
+      submitterIds.length
+        ? supabase.from("users").select("id, first_name, last_name").in("id", submitterIds)
+        : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string }[] }),
+      missingParentIds.length
+        ? supabase.from("expenses").select("id, description").in("id", missingParentIds)
+        : Promise.resolve({ data: [] as { id: string; description: string }[] }),
+    ]);
 
   const projectById = new Map((projects ?? []).map((p) => [p.id, p]));
   const costCenterById = new Map((costCenters ?? []).map((c) => [c.id, c]));
   const userNameById = new Map(
     (users ?? []).map((u) => [u.id, `${u.first_name} ${u.last_name}`.trim()]),
   );
+  const parentDescriptionById = new Map((parents ?? []).map((p) => [p.id, p.description]));
+  const descriptionById = new Map(rows.map((r) => [r.id, r.description as string]));
 
   return rows.map((row) => {
     const project = projectById.get(row.project_id);
     const costCenter = row.cost_center_id ? costCenterById.get(row.cost_center_id) : undefined;
     const status = row.status as ExpenseStatus;
+    const parentId = (row.reconciles_advance_id as string | null) ?? null;
 
     return {
       id: row.id,
@@ -375,13 +378,37 @@ export async function getExpenseOverview(
       costCenterCode: costCenter?.code ?? null,
       costCenterName: costCenter?.name ?? null,
       status,
-      responsibleParty: responsiblePartyForStatus(status),
       submittedByName: row.submitted_by ? (userNameById.get(row.submitted_by) ?? null) : null,
       amount: Number(row.amount),
       description: row.description,
       vendorName: row.vendor_name,
       expenseType: row.expense_type as ExpenseType,
       createdAt: row.created_at,
+      statusSince: statusSinceOf(status, row.created_at, row.approval_logs ?? []),
+      reconcilesAdvanceId: parentId,
+      parentAdvanceDescription: parentId
+        ? (descriptionById.get(parentId) ?? parentDescriptionById.get(parentId) ?? null)
+        : null,
     };
   });
+}
+
+/** When the Beleg entered its current status: the latest log row that moved
+ * it there, else the latest status change of any kind, else its creation
+ * (split line items are created directly in awaiting_receipt). */
+function statusSinceOf(
+  status: ExpenseStatus,
+  createdAt: string,
+  logs: Array<{ to_status: string | null; created_at: string }>,
+): string {
+  const latest = (entries: typeof logs) =>
+    entries.reduce<string | null>(
+      (max, l) => (max === null || l.created_at > max ? l.created_at : max),
+      null,
+    );
+  return (
+    latest(logs.filter((l) => l.to_status === status)) ??
+    latest(logs.filter((l) => l.to_status !== null)) ??
+    createdAt
+  );
 }
