@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getExpenseDetail } from "@/lib/supabase/queries/expense-detail";
 import { getUploadOptions } from "@/lib/supabase/queries/upload-options";
 import { getPermittedActions } from "@/lib/supabase/queries/permitted-actions";
+import { getOpenReassignmentProposal } from "@/lib/supabase/queries/reassignment-proposals";
 import { ExpenseDetailView } from "./expense-detail-view";
 
 export async function generateMetadata({
@@ -19,11 +20,13 @@ export async function generateMetadata({
 
 export default async function ExpenseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [expense, { projects: reassignProjects }, permittedActions] = await Promise.all([
-    getExpenseDetail(id),
-    getUploadOptions(),
-    getPermittedActions(id),
-  ]);
+  const [expense, { projects: reassignProjects }, permittedActions, openReassignmentProposal] =
+    await Promise.all([
+      getExpenseDetail(id),
+      getUploadOptions(),
+      getPermittedActions(id),
+      getOpenReassignmentProposal(id),
+    ]);
   if (!expense) notFound();
 
   return (
@@ -31,6 +34,7 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
       expense={expense}
       reassignProjects={reassignProjects}
       permittedActions={permittedActions}
+      openReassignmentProposal={openReassignmentProposal}
     />
   );
 }

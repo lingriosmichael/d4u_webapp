@@ -215,7 +215,7 @@ function AdvanceOverviewSection({ advances }: { advances: AdvanceOverviewRow[] }
                   {a.status === "reconciled" ? "Abgerechnet" : "Offen"}
                 </td>
                 <td className="px-6 py-3 text-muted-foreground">
-                  {a.reconciledAt ? new Date(a.reconciledAt).toLocaleDateString("de-DE") : "—"}
+                  {a.reconciledAt ? fmtDate(a.reconciledAt) : "—"}
                 </td>
               </tr>
             );

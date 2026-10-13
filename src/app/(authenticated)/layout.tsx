@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { getCurrentUserProfile, getMustChangePassword } from "@/lib/supabase/queries/current-user";
-import { getDashboardExpenses, needsActionFor } from "@/lib/supabase/queries/dashboard";
+import {
+  getDashboardExpenses,
+  getOpenReassignmentExpenseIds,
+  needsActionFor,
+} from "@/lib/supabase/queries/dashboard";
 import { RoleProvider } from "@/lib/role-context";
 import { AppShell } from "@/components/layout/app-shell";
 
@@ -28,8 +32,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // duplicates the same query dashboard-view.tsx runs for Übersicht
   // itself; an accepted small inefficiency (one extra read per page load)
   // rather than a shared-cache layer this app's scale doesn't need yet.
-  const expenses = await getDashboardExpenses();
-  const pendingCount = needsActionFor(expenses, user.role).length;
+  const [expenses, openReassignmentExpenseIds] = await Promise.all([
+    getDashboardExpenses(),
+    getOpenReassignmentExpenseIds(user.role),
+  ]);
+  const pendingCount = needsActionFor(expenses, user.role, openReassignmentExpenseIds).length;
 
   return (
     <RoleProvider user={user}>

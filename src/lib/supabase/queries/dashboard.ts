@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { ExpenseStatus, Role } from "@/lib/mock-data";
 import { isApprovalStageReviewer } from "@/lib/approval-stage-role";
+import { getOpenReassignmentProposals } from "./reassignment-proposals";
 
 // Data-access layer for the Übersicht (dashboard) screen. Column names come
 // from documentation/0001_rls_policies.sql (ground truth for the columns it
@@ -132,14 +133,28 @@ export async function getDashboardExpenses(): Promise<DashboardExpense[]> {
 }
 
 /** Mirrors d4u_backend's real authorization (see approval-stage-role.ts):
- * the role whose approval stage an expense is currently at, or accounting
- * reviewing an unverified partner advance. */
+ * the role whose approval stage an expense is currently at, accounting
+ * reviewing an unverified partner advance, or accounting deciding an open
+ * Umwidmung proposal (ids from getOpenReassignmentProposals — the backend
+ * decides which proposals are open). */
 export function needsActionFor(
   expenses: DashboardExpense[],
   currentUserRole: Role,
+  openReassignmentExpenseIds: ReadonlySet<string> = new Set(),
 ): DashboardExpense[] {
   return expenses.filter((e) => {
     if (currentUserRole === "accounting" && e.status === "submitted_unverified") return true;
+    if (currentUserRole === "accounting" && openReassignmentExpenseIds.has(e.id)) return true;
     return isApprovalStageReviewer(e.status, currentUserRole);
   });
+}
+
+/** Expense ids with an open Umwidmung proposal — only Accounting has a
+ * queue (the backend refuses everyone else), so other roles skip the call. */
+export async function getOpenReassignmentExpenseIds(
+  currentUserRole: Role,
+): Promise<ReadonlySet<string>> {
+  if (currentUserRole !== "accounting") return new Set();
+  const proposals = await getOpenReassignmentProposals();
+  return new Set(proposals.map((p) => p.expenseId));
 }

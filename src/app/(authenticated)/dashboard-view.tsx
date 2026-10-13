@@ -8,6 +8,7 @@ import {
   getDashboardProjects,
   getDashboardBudgetStatus,
   getDashboardExpenses,
+  getOpenReassignmentExpenseIds,
   needsActionFor,
 } from "@/lib/supabase/queries/dashboard";
 import { ArrowUpRight, TriangleAlert } from "lucide-react";
@@ -20,16 +21,17 @@ export async function DashboardView() {
   // the session expires between that check and this one.
   if (!user) redirect("/login");
 
-  const [projects, budgetStatuses, expenses] = await Promise.all([
+  const [projects, budgetStatuses, expenses, openReassignmentExpenseIds] = await Promise.all([
     getDashboardProjects(),
     getDashboardBudgetStatus(),
     getDashboardExpenses(),
+    getOpenReassignmentExpenseIds(user.role),
   ]);
 
   const budgetStatusByProject = new Map(budgetStatuses.map((b) => [b.projectId, b]));
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
-  const pending = needsActionFor(expenses, user.role);
+  const pending = needsActionFor(expenses, user.role, openReassignmentExpenseIds);
   const visibleProjects =
     user.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects;
 
@@ -74,6 +76,11 @@ export async function DashboardView() {
                   {e.partnerName && (
                     <p className="text-[10px] text-muted-foreground mt-1">
                       Partner: {e.partnerName}
+                    </p>
+                  )}
+                  {openReassignmentExpenseIds.has(e.id) && (
+                    <p className="text-[10px] font-semibold text-clay mt-1">
+                      Umwidmung zur Entscheidung
                     </p>
                   )}
                 </div>

@@ -2,10 +2,26 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_EXPENSE_STATUSES,
   OPEN_EXPENSE_STATUSES,
+  fmtDate,
+  fmtDateTime,
   statusLabel,
   statusTone,
   type ExpenseStatus,
 } from "@/lib/mock-data";
+
+// Server (UTC on Vercel) and browser must print the same Berlin time, or
+// React reports a hydration mismatch — independent of the test machine's TZ.
+describe("fmtDate / fmtDateTime", () => {
+  it("formats in Europe/Berlin, not the runtime's time zone", () => {
+    // 22:30 UTC on 12 Oct = 00:30 on 13 Oct in Berlin (CEST, UTC+2).
+    expect(fmtDate("2026-10-12T22:30:00Z")).toBe("13.10.2026");
+    expect(fmtDateTime("2026-10-12T22:30:00Z")).toBe("13.10.2026, 00:30");
+  });
+
+  it("follows the winter offset too (CET, UTC+1)", () => {
+    expect(fmtDateTime("2026-12-01T08:00:00Z")).toBe("01.12.2026, 09:00");
+  });
+});
 
 // This file's status vocabulary has drifted from the live schema before
 // (see mock-data.ts's own ADR comments: "submitted_pending"/"rejected"
