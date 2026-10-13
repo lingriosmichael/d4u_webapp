@@ -1,4 +1,4 @@
-import type { ExpenseStatus, Role } from "@/lib/mock-data";
+import { roleLabels, type ExpenseStatus, type Role } from "@/lib/mock-data";
 
 // Which role reviews an expense at each approval-stage status. Mirrors
 // d4u_backend's state-machine.ts APPROVAL_STAGE_ROLE exactly — that map is
@@ -33,11 +33,39 @@ export function isApprovalStageReviewer(status: ExpenseStatus, role: Role): bool
 // (Zuständigkeit column/filter); never for gating an actual write.
 export type ResponsibleParty = "ceo" | "accounting" | "submitter";
 
+// The three Vorschuss-Abrechnung statuses (migration 0017) were missing until
+// 13 Oct 2026 and showed "—": a split advance and its line items wait on the
+// advance's own submitter (receipts, then "zur Abrechnung einreichen" —
+// d4u_backend's assertIsAdvanceSubmitter); a submitted Abrechnung waits on
+// Accounting (reconcile commit). The child line items carry the advance's
+// submitted_by, so "submitter" is the same person for both.
 const STATUSES_BY_RESPONSIBLE_PARTY: Record<ResponsibleParty, ExpenseStatus[]> = {
   ceo: ["ceo_approval"],
-  accounting: ["accounting_approval", "awaiting_payment", "submitted_unverified"],
-  submitter: ["needs_changes"],
+  accounting: [
+    "accounting_approval",
+    "awaiting_payment",
+    "submitted_unverified",
+    "reconciliation_submitted",
+  ],
+  submitter: ["needs_changes", "reconciliation_in_progress", "awaiting_receipt"],
 };
+
+export const RESPONSIBLE_PARTY_LABELS: Record<ResponsibleParty, string> = {
+  ceo: roleLabels.ceo,
+  accounting: roleLabels.accounting,
+  submitter: "Einreicher:in",
+};
+
+const CLOSED_STATUSES: ReadonlySet<ExpenseStatus> = new Set<ExpenseStatus>(["paid", "reconciled"]);
+
+/** "Zuständig" as shown in the Belege-Übersicht and its Excel export:
+ * the responsible role, "Abgeschlossen" once nothing is left to do (paid /
+ * reconciled), or "—" for a status nobody acts on. */
+export function responsibleLabelForStatus(status: ExpenseStatus): string {
+  if (CLOSED_STATUSES.has(status)) return "Abgeschlossen";
+  const party = responsiblePartyForStatus(status);
+  return party ? RESPONSIBLE_PARTY_LABELS[party] : "—";
+}
 
 export function responsiblePartyForStatus(status: ExpenseStatus): ResponsibleParty | null {
   return (

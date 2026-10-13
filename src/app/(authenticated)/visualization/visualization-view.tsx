@@ -12,13 +12,15 @@ import {
   type AdvanceOverviewRow,
   type ExpenseOverviewRow,
 } from "@/lib/supabase/queries/visualization";
-import { fmtEUR, fmtDate, statusLabel, statusTone, roleLabels } from "@/lib/mock-data";
+import { fmtEUR, fmtDate, statusLabel, statusTone } from "@/lib/mock-data";
 import { ArrowLeft, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExpenseFilterBar } from "./expense-filter-bar";
 import { computeBudgetFigures, BUDGET_LABELS, type BudgetFigures } from "@/lib/budget-figures";
 import { projectsVisibleTo } from "@/lib/project-scoped-roles";
 import { VisualizationTabs } from "./visualization-tabs";
+import { responsibleLabelForStatus } from "@/lib/approval-stage-role";
+import { canSeeOrganisationOverviews } from "@/lib/overview-access";
 
 // Converted from lib/mock-data.ts to real Supabase reads (server-fetched,
 // same pattern as Übersicht/Expense Detail/Verwaltung). Read-only screen —
@@ -55,7 +57,7 @@ export async function Visualization({
   // Vorschuss-Übersicht and Belege-Übersicht are both Accounting/CEO only
   // (confirmed decisions) — RLS reads are broader (also admin), so this is
   // an app-level gate, same pattern as the project-scoped filter above.
-  const canSeeAdvances = user?.role === "accounting" || user?.role === "ceo";
+  const canSeeAdvances = user ? canSeeOrganisationOverviews(user.role) : false;
   const advances = canSeeAdvances ? await getAdvanceOverview() : [];
 
   const expenseFilters = parseExpenseOverviewFilters(rawExpenseFilters ?? {});
@@ -225,11 +227,6 @@ function AdvanceOverviewSection({ advances }: { advances: AdvanceOverviewRow[] }
   );
 }
 
-function responsiblePartyLabel(party: ExpenseOverviewRow["responsibleParty"]): string {
-  if (!party) return "—";
-  return party === "submitter" ? "Einreicher:in" : roleLabels[party];
-}
-
 function ExpenseOverviewSection({
   expenses,
   costCenters,
@@ -255,7 +252,11 @@ function ExpenseOverviewSection({
 
   return (
     <div>
-      <ExpenseFilterBar costCenters={costCenters} projects={projects} />
+      <ExpenseFilterBar
+        costCenters={costCenters}
+        projects={projects}
+        resultCount={expenses.length}
+      />
 
       {expenses.length === 0 ? (
         <div className="bg-card ring-1 ring-line card-shape p-6 text-sm text-muted-foreground">
@@ -310,7 +311,7 @@ function ExpenseOverviewSection({
                         </td>
                         <td className="px-6 py-3 text-muted-foreground">
                           <Link href={`/expenses/${e.id}`} className="block">
-                            {responsiblePartyLabel(e.responsibleParty)}
+                            {responsibleLabelForStatus(e.status)}
                           </Link>
                         </td>
                         <td className="px-6 py-3 text-muted-foreground">
