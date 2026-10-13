@@ -51,7 +51,7 @@ export async function AdvancesView() {
               Zur Bestätigung eingereicht
             </h2>
             <p className="text-muted-foreground text-sm mt-1">
-              Vorschüsse, deren Positionen vollständig belegt sind und auf Ihre Freigabe warten.
+              Vorschüsse, deren Positionen vollständig belegt sind und auf Ihre Bestätigung warten.
             </p>
           </div>
           {awaitingConfirmation.length === 0 ? (

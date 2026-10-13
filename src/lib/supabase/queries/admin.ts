@@ -228,8 +228,8 @@ export async function getAdminPartners(): Promise<AdminPartner[]> {
 // a stored `1000` round-trips as the string "1000", a stored `false` as the
 // string "false". Without parsing, SettingsTab's `typeof s.value ===
 // "boolean"` check (admin-view.tsx) is always false, so a boolean setting
-// like advance_requires_ceo_approval rendered as a text box showing the
-// literal word "false" instead of a switch. Parsed here, once, rather than
+// rendered as a text box showing the literal word "false" instead of a
+// switch. Parsed here, once, rather than
 // re-deriving the type at every render site.
 function parseSettingValue(raw: unknown): unknown {
   if (typeof raw !== "string") return raw;

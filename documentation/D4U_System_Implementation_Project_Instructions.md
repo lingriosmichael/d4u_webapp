@@ -10,7 +10,9 @@ The result is that the project is now substantially clearer than the older Proje
 
 ---
 
-## 0. Architecture Revision Notice (proposed — not yet confirmed by David)
+## 0. Architecture Revision Notice (confirmed for development 5 Sep 2026; written confirmation still open)
+
+**Status (updated 13 Oct 2026):** D4U confirmed on 5 Sep 2026 to proceed with the custom backend (§2C). That was a go-ahead for development; D4U's written confirmation is still open (§20, BLOCKER). With RocketChat cancelled (§2G), the optional notification-only n8n instance described below has nothing left to do: e-mails are sent from the backend. The text below is kept as the original proposal.
 
 Technical Specification v2 names n8n as the workflow/business-logic layer sitting between the frontend and Supabase, handling validation, routing, and RPC invocation. That remains the _confirmed_ architecture until David signs off on a change.
 
@@ -24,7 +26,7 @@ This document now also carries a **proposed revision**, developed and recommende
 
 **What does NOT change under this revision:** the 12-table schema, RLS model, the five Postgres RPCs, the frontend build, the Soll/Ist/Obligo model, and every unresolved business decision listed in §20. Only the layer that validates and routes business writes moves from n8n workflows into a custom backend. Financial arithmetic and multi-row transactions remain in Postgres RPCs either way — that was correct in the original design and is unchanged here.
 
-**Optional retained role for n8n:** a minimal, notification-only n8n instance may still be used for RocketChat/email fan-out and scheduled jobs (reminders, 90-day archival), triggered _after_ a write has already been validated and committed by the backend — never as something that decides whether a write is allowed. This is a much smaller, easier-to-secure surface than carrying the full authorization model.
+**Optional retained role for n8n** _(superseded 13 Oct 2026: RocketChat is cancelled and e-mail is sent from the backend, §2G, so no n8n instance remains)_: a minimal, notification-only n8n instance may still be used for RocketChat/email fan-out and scheduled jobs (reminders, 90-day archival), triggered _after_ a write has already been validated and committed by the backend — never as something that decides whether a write is allowed. This is a much smaller, easier-to-secure surface than carrying the full authorization model.
 
 This revision is presented to David as a recommendation: same database, same RPCs, same frontend, same open decisions — the "who's allowed to do what, when" logic moves from visual workflows into tested application code. Until confirmed, treat §1, §13, §16, §21 (Conflict A), and §22 below as containing both the original n8n-based text and the proposed backend-based revision, clearly marked.
 
@@ -43,7 +45,7 @@ The finished Phase 1 system should replace the current Flowwer/email/direct-mess
 | Documents                     | Supabase Storage                                                 | unchanged                                                                                                   |
 | Automation / business logic   | n8n                                                              | **Custom backend (Next.js API routes on Vercel)**                                                           |
 | Transactional financial logic | PostgreSQL RPC functions                                         | unchanged                                                                                                   |
-| Notifications                 | RocketChat, with email fallback where required                   | unchanged in principle; called directly from the backend, or via a minimal notification-only n8n instance   |
+| Notifications                 | ~~RocketChat, with email fallback where required~~               | **E-mail only, sent from the backend (§2G, 13 Oct 2026). RocketChat cancelled.**                            |
 | Dashboard                     | Recharts inside the application                                  | unchanged                                                                                                   |
 | Advanced reporting            | Metabase is currently contradictory — decision required; see §15 | unchanged                                                                                                   |
 | Infrastructure                | Hetzner VPS for n8n and potentially Metabase                     | Hetzner VPS only if a minimal notification-only n8n is retained; otherwise not required for the core system |
@@ -75,7 +77,7 @@ There are five roles, not four. **Read together with §2C: Finance Manager's app
 | Role            | Main responsibility                                      |
 | --------------- | -------------------------------------------------------- |
 | project_manager | Submit expenses for own projects                         |
-| finance_manager | Submit for own projects; scoped like project_manager (§2F) |
+| finance_manager | Submit on any project; sees all projects; approves nothing (§2F) |
 | accounting      | Final financial authority, payments, reconciliation      |
 | ceo             | Over-threshold/escalated approvals and approval reversal |
 | admin           | System configuration only; never financial approval      |
@@ -92,10 +94,10 @@ Accounting is explicitly described as holding greater financial authority than F
 
 **Finance Manager**
 
-- submit expenses;
-- approve/reject normal expenses below the configured threshold;
-- may initiate an Umwidmung (Reassign) request — see §2A; whether other roles may also initiate one is still unconfirmed;
-- ~~org-wide visualization~~ — since 13 Oct 2026 sees only projects they lead plus their own submissions, exactly like a Project Manager (§2F).
+- submit expenses on any project (§2F);
+- ~~approve/reject normal expenses below the configured threshold~~ — removed 5 Sep 2026, Finance Manager approves nothing (§2C);
+- may initiate an Umwidmung (Reassign) request, as may Project Manager and CEO (§2C);
+- org-wide visualization: sees every project (§2F, decided 13 Oct 2026). Otherwise the Finance Manager has a Project Manager's permissions.
 
 **Accounting**
 
@@ -130,7 +132,7 @@ Accounting is explicitly described as holding greater financial authority than F
 - settings;
 - no approval authority.
 
-The CEO and Accounting self-submission branches are already settled; Finance Manager self-submission is not.
+All three self-submission branches are settled (§2C): CEO and Accounting have special cases, and Finance Manager routes like everyone else.
 
 **A sixth "base employee" role was considered and has been dropped** — see §2A. All five roles above submit expenses through the same frontend approval pipeline; there is no role that needs submission rights without the rest of the role model, so no new role was needed.
 
@@ -160,6 +162,8 @@ David answered a round of clarifying questions by email on 25 Aug 2026. This sec
 
 ### Still open — needs a follow-up, not yet answered
 
+**Both items below were closed on 5 Sep 2026 (§2C):** initiators are Finance Manager, Project Manager and CEO, and there is no editing before approval, only reject → resubmit. The initiators were confirmed by D4U on 13 Oct 2026 (Project Manager, Finance Manager and CEO propose; Accounting only approves or rejects). No editing before approval is kept as the rule until further notice (Michael, 13 Oct 2026); D4U hasn't confirmed it, so it can change if D4U asks for an edit option. Kept as the record of what was asked.
+
 - **Which role(s) may initiate/request an Umwidmung?** David settled who approves (Accounting) and who does not execute directly (CEO), but not who is allowed to submit the initial request. This is a narrower version of the pre-existing "exact Umwidmung executor roles" item in §20 — it has shrunk, not closed.
 - **Can a submitter edit their own expense after submission but before approval, or must every correction go through the reject/"needs changes" cycle?** This question was raised in the same email thread and was **not answered** in David's reply — it needs a dedicated follow-up. It affects: (a) whether `expenses` needs an editable-while-`submitted` state at all, (b) whether this is a blanket rule or a `permissions[]`-style override per user, and (c) how much correction risk exists once approval-limit-based routing is live, since a mistaken submission that slips past its intended threshold currently has no self-service fix path.
 
@@ -183,16 +187,21 @@ Closes the §11/§20 open item "how to present an unused Vorschuss balance in re
 
 This section closes several items that were still open in §20 as of the last edit to this document, and records one unresolved documentation gap discovered while writing this section. **Where this contradicts earlier text elsewhere in this document (§2, §9.5, §10, §11, §13), this section is authoritative** — the older text is left in place for traceability but should be read as superseded.
 
+**Resolved 13 Oct 2026:** `d4u_backend/documentation/approval_routing.md` was recreated from the two CONTRIBUTING.md files, this section and `state-machine.ts`. It records no new decision, and this section remains the canonical record. Original note:
+
 **Source-document gap, flag before trusting anything below at face value:** `d4u_backend/CONTRIBUTING.md`, `d4u_webapp/CONTRIBUTING.md`, and migration `0009_approval_limit_and_routing_model.sql` all cite `d4u_backend/documentation/approval_routing.md` as the primary source for this rewrite, marking it 🟡 "implementer decision, not yet confirmed by the client in writing." That file does not exist anywhere in either repo as of this writing — only `d4u_backend/documentation/OPEN_DECISIONS.md` survives. Either the file was never committed, or it was deleted without updating the three places that still point to it. This needs a fix (recreate it from the two CONTRIBUTING.md files' content, or repoint the citations) before treating the 🟡 status as anything other than "still not confirmed by David in writing" — the missing file doesn't change that status, but it does mean there's currently no single authoritative document for this rewrite, which is exactly the kind of drift §20's logging convention exists to prevent.
 
-### Approval routing rewrite (implementer decision, 🟡 not yet confirmed by David in writing)
+### Approval routing rewrite (confirmed by D4U, recorded 13 Oct 2026, not yet in writing)
+
+**Confirmed 13 Oct 2026:** the per-submitter limit (€1,000 per person), Accounting as the final approver with CEO review only above the limit, the CEO's own expenses going straight to Accounting, Accounting's self-approval with the log flag as the only safeguard, and Finance Manager approves nothing and their own expenses take the normal route (what they can see is §2F). Also confirmed: Umwidmung is proposed only by Project Manager, Finance Manager or CEO, Accounting only approves or rejects, and there's no lighter process for a same-group Umwidmung. All of it goes into the same written follow-up as §2G. No editing before approval is kept as the rule until further notice (Michael, 13 Oct 2026); D4U hasn't confirmed it, so it can change if D4U asks for an edit option. Undo of an approval by Accounting or CEO was confirmed on 13 Oct 2026 too.
 
 - **Finance Manager has no approval role at all anymore.** There is no `finance_approval` status. Finance Manager submits like every other role and routes purely on amount vs. their own `approval_limit` — this closes the §20 items "Who approves Finance Manager's own expenses?" and "What exactly differentiates Finance Manager authority from Accounting authority?" (answer to the second: Accounting is the universal final approver of every standard expense; Finance Manager approves nothing, ever).
 - **`approval_limit` is a SUBMITTER attribute**, not an approver attribute — closes any ambiguity in §3.1's phrasing ("branches on the acting approver's personal approval_limit" was wrong; it's the submitter's). `numeric(12,2) NOT NULL DEFAULT 0` (migration 0009 tightened this from the nullable field §3.1 describes) — 0 is fail-closed (escalates to CEO), not "no limit."
 - **The monetary threshold is confirmed at €1,000, per-user, not org-wide** — closes "What is the actual Finance Manager/CEO monetary approval threshold?" It is not a single figure everyone shares; each user's own `approval_limit` row is what's compared against their own submission amount.
 - **Accounting is the universal final approver.** Status flow: `submitted` → (amount ≤ submitter's limit) → `accounting_approval`, or (amount > limit) → `ceo_approval` → `accounting_approval` → `awaiting_payment` → `paid`. CEO approval is additive, never terminal — it always still passes through `accounting_approval`.
 - **Self-submission special cases, not generalized:** CEO's own expense skips straight to `accounting_approval`. Accounting's own expense also lands at `accounting_approval` at any amount, which makes it unavoidably self-approved — **accepted as a risk, not silently allowed**: every such routing decision logs a `self_approval_flagged` row (`approval_logs`). David explicitly declined the two further compensating controls that were proposed (a standing audit query, a CEO/Admin dashboard tile) — the log flag is the only one built, and that's final. Finance Manager's own expense has no special case — routes on amount like anyone else, closing the last open self-submission question.
-- **Undo-approval authority widened to Accounting and CEO** (was CEO-only in §9.5/§2's original text) — closes "Does Accounting have authority to override an FM approval?" in spirit (there's no FM approval left to override; Accounting can now undo any `awaiting_payment` expense itself, same as CEO).
+- **No editing a submitted expense before approval, ever.** Every correction goes through reject (note required) → resubmit. This closes the item §2A left unanswered. It's recorded as confirmed in `PROJECT_STATUS_AND_OPEN_DECISIONS.md` §3.5 and `d4u_backend/CONTRIBUTING.md`, and was added here on 13 Oct 2026 so §2C holds the whole bundle.
+- **Undo-approval authority widened to Accounting and CEO** (was CEO-only in §9.5/§2's original text; confirmed by D4U 13 Oct 2026) — closes "Does Accounting have authority to override an FM approval?" in spirit (there's no FM approval left to override; Accounting can now undo any `awaiting_payment` expense itself, same as CEO).
 - **`expenses_status_check` (migration 0009, then 0017) now allows:** `draft, submitted, ceo_approval, accounting_approval, needs_changes, awaiting_payment, paid, submitted_unverified, reconciled, awaiting_receipt, reconciliation_in_progress, reconciliation_submitted`. §10's state-machine diagram only shows a subset of these and should be read as the standard-expense path only, not the full enum (see the Vorschuss redesign below for the advance-only statuses).
 - **`approval_logs_action_check` gained:** `self_approval_flagged`, `reassignment_requested`, `escalated_to_ceo` (migration 0021 — logs the CEO-escalation branch itself, which previously executed correctly but left no audit trail), `advance_split`, `reconciliation_submitted`. `finance_approved` stays in the allowed set for historical rows even though nothing will log it again — not removed, since that would be a destructive migration for no benefit.
 
@@ -222,26 +231,18 @@ There is no Excel-row-to-receipt-filename matching step, no "flag missing files"
 
 ### New open items surfaced in this window (not previously in §20)
 
-- **The `approval_routing.md` dangling-reference gap** described at the top of this section.
-- **Microsoft/Azure SSO** moved from "confirm the provider" to a confirmed client requirement (6 Sep 2026: "Es gab eine Anforderung von D4U: SSO über Microsoft als Login"). **Now has a written implementation plan** (`d4u_backend/documentation/MICROSOFT_SSO_IMPLEMENTATION_PLAN.md`, added after this section was last written): ~2–3.5 engineering days across four phases, fully blocked on D4U for two yes/no decisions (restrict to D4U's own tenant only? fully replace password login or keep it as a fallback?) and on someone with D4U's Microsoft 365 admin access registering the app — nothing here can start from the engineering side alone. See `d4u_backend/CONTRIBUTING.md`'s "Deferred, not forgotten" note and `OPEN_DECISIONS.md` item 4 for the `public.users.id` re-pointing complexity this will require at cutover.
-- **Supabase Auth/Storage production hardening**, deferred by explicit client decision pending more information: public signup still enabled at the Auth level (inconsistent with the admin-provisioned user model), no custom SMTP decision, Auth redirect/site URLs not yet pointed at a real domain, and the `receipts` Storage bucket has no file-size or MIME-type limit configured. See `OPEN_DECISIONS.md` item 2.
-- **Backups (PITR) and Data Processing Agreements** (Supabase + Vercel, GDPR/DSGVO) — agreed as necessary, explicitly scheduled for the very end of the production rollout rather than now. See `OPEN_DECISIONS.md` item 3.
+- ~~**The `approval_routing.md` dangling-reference gap** described at the top of this section.~~ Resolved 13 Oct 2026: file recreated.
+- **Microsoft/Azure SSO** moved from "confirm the provider" to a confirmed client requirement (6 Sep 2026: "Es gab eine Anforderung von D4U: SSO über Microsoft als Login"). **Now has a written implementation plan** (`d4u_backend/documentation/MICROSOFT_SSO_IMPLEMENTATION_PLAN.md`, added after this section was last written): ~2–3.5 engineering days across four phases, fully blocked on D4U for two yes/no decisions (restrict to D4U's own tenant only? fully replace password login or keep it as a fallback?) and on someone with D4U's Microsoft 365 admin access registering the app — nothing here can start from the engineering side alone. See `d4u_backend/CONTRIBUTING.md`'s "Deferred, not forgotten" note and `OPEN_DECISIONS.md` item 7 for the `public.users.id` re-pointing complexity this will require at cutover.
+- **Supabase Auth/Storage production hardening**, deferred by explicit client decision pending more information: public signup still enabled at the Auth level (inconsistent with the admin-provisioned user model), no custom SMTP decision, Auth redirect/site URLs not yet pointed at a real domain, and the `receipts` Storage bucket has no file-size or MIME-type limit configured. See `OPEN_DECISIONS.md` item 5.
+- **Backups (PITR) and Data Processing Agreements** (Supabase + Vercel, GDPR/DSGVO) — agreed as necessary, explicitly scheduled for the very end of the production rollout rather than now. See `OPEN_DECISIONS.md` item 6.
 
-## 2D. Reopened, NOT yet confirmed: should Vorschuss require an in-system approval gate? (raised 7 Sep 2026)
+## 2D. ~~Reopened~~ Closed: should Vorschuss require an in-system approval gate? (raised 7 Sep 2026, closed 13 Oct 2026)
 
-**Status: open question, raised by Michael (implementer side) — this is a proposal to reverse the §8/§2C confirmed decision below, not a new confirmed decision. Do not implement against this section until it is actually settled.**
+**Closed 13 Oct 2026 (§2G): D4U confirmed that Vorschüsse need no approval in the system.** Nothing is to be built.
 
-**What's currently confirmed (§8, this doc; unaffected until this is resolved):** `settings.advance_requires_ceo_approval = false`, and the rule that "Vorschuss approval takes place outside the system and the system therefore does not introduce another approval gate." Per §11 Stage 1, a partner-advance placeholder currently has **no approval gate at all** — it enters Obligo immediately on creation, with no Accounting or CEO sign-off step anywhere before the money commitment is recorded.
+**What was asked (7 Sep 2026, raised by Michael):** whether Accounting should actively release (*Freigeben*) an advance before the money goes to the partner, and whether the €1,000 `approval_limit` / CEO rule should apply to advances. At the time a new advance went straight to `submitted_unverified` and reserved its Obligo with no sign-off, and the only later checkpoint ("documents received") is bookkeeping, not authorization.
 
-**What's being questioned:** whether that's actually correct. The concern raised: Accounting needs visibility into the amount and needs to actively *Freigeben* (release/authorize) an advance before the money is sent to the partner — the current design has no such gate, only a later "documents received" checkpoint (§11 Stage 2, `submitted_unverified`) that is bookkeeping, not authorization. Separately, the existing €1,000 per-user `approval_limit` / CEO-escalation rule (confirmed in §2C for standard expenses) is not currently applied to advances at all — it's an open question whether it should be, verbatim or with its own variant.
-
-**What this would change if confirmed as "yes, advances need approval":**
-- A new pre-Obligo approval status/gate on the `partner_advance` lifecycle (§11 Stage 1 currently has none), most likely mirroring `accounting_approval` (and `ceo_approval` above the submitter's `approval_limit`, i.e. the €1,000 threshold) before the advance is allowed to reserve Obligo or before the payout can be treated as authorized in the system.
-- `settings.advance_requires_ceo_approval` would flip to `true` and stop being just a placeholder value — its consumption logic doesn't exist yet and would need to be built.
-- Updates to §8, §11, the `expenses_status_check` state machine (§2C), the RPC step that currently reserves Obligo on advance creation, the Vorschüsse tab's action set (currently no approve/reject action exists there — see the "Umwidmung genehmigen"/"Unterlagen eingegangen" screen, which has no approval button by design today), and both service CONTRIBUTING.md files' Vorschuss descriptions.
-- This is a client-relevant change, not just an internal engineering call — see §20's BLOCKER item on formally closing out routing decisions with David in writing. Whoever is the actual client-side stakeholder for this project should confirm this in writing before it's built as final, the same way the approval-routing rewrite itself is tracked as 🟡 pending that confirmation.
-
-**What's still open:** the gate mechanism itself (mirror the standard-expense flow exactly, or a lighter Accounting-only gate with no CEO step regardless of amount?), whether the €1,000 `approval_limit` threshold applies to advances as-is or needs its own configurable threshold, and whether this blocks only new advances going forward or requires reconciling any already-`submitted_unverified` advances created under the old no-gate rule.
+**Outcome:** that behaviour is the confirmed design. The unused switch for an approval gate, `settings.advance_requires_ceo_approval`, and the backend helper that could have read it were deleted on 13 Oct 2026 (migration 0034), so nothing in the system suggests an approval step for advances.
 
 ---
 
@@ -265,23 +266,64 @@ Engineering changes in the same set, with no business-rule change (for §9's RPC
 
 ---
 
-## 2F. Finance Manager is scoped like a Project Manager (13 Oct 2026, 🟡 pending D4U's written confirmation)
+## 2F. Finance Manager sees every project and submits on any project (decided 13 Oct 2026)
 
-**Status: built (d4u_backend migration 0032 plus matching backend and webapp changes), decided on the implementer side, not yet confirmed by D4U in writing.**
+**Source:** D4U, via Michael after a call with David on 13 Oct 2026. **Not yet in writing**; put it into the same written follow-up as §2G.
 
-**What was wrong:** the original model gave the Finance Manager approval authority, and organisation-wide read access to go with it (§2: "org-wide visualization"; `is_org_wide_reader()` in 0001). The approval role was removed on 5 Sep 2026 (§2C), but the read access stayed. A Finance Manager could still see every project's expenses, approval history, user names and receipts, the same as Accounting and the CEO, and could submit to any project.
+**Decision:** a Finance Manager sees all projects and may submit an expense on any project. Otherwise they have a Project Manager's permissions: they approve nothing (§2C), their own expenses take the normal approval route, and they may propose an Umwidmung (§2A). "Finanzleitung" stays a separate role, because its scope now differs from a Projektleitung's, so the "merge the two roles?" question is closed.
 
-**Decision:** the Finance Manager has exactly the Project Manager's scope. That means only projects they lead (`projects.lead_user_id`) plus their own submissions, in every place the scope is applied:
-- RLS on `expenses`, `approval_logs` and `users`: `is_org_wide_reader()` is now Accounting, CEO and Admin only;
-- the receipts storage bucket;
-- `POST /api/expenses`;
-- the project lists on Übersicht, Auswertung and both upload forms.
+**History:** earlier the same day, migration 0032 had scoped the Finance Manager like a Project Manager (only projects they lead plus their own submissions) as an implementer decision. D4U decided otherwise. Migration 0035 reverses 0032, which puts the Finance Manager back among the organisation-wide readers (`is_org_wide_reader()`), with Accounting, CEO and Admin.
 
-Nothing else about the role changes. It still approves nothing and may still propose an Umwidmung (§2A). The Belege-Übersicht and Vorschuss-Übersicht were already restricted to Accounting and the CEO. Regression test: `d4u_backend/scripts/test-project-scoped-reads.sh`.
+**What applies now:**
+- RLS on `expenses`, `approval_logs` and `users`: a Finance Manager reads organisation-wide.
+- Receipts storage bucket: a Finance Manager reads every receipt and uploads for any project.
+- `POST /api/expenses`: no project-lead check for a Finance Manager (`PROJECT_SCOPED_ROLES` is `project_manager` only, in both repos).
+- Übersicht, Auswertung and both upload forms list every project.
+- Unchanged: payment and tax details (`expense_accounting_details`) and the Belege-Übersicht and Vorschuss-Übersicht stay Accounting and CEO only.
 
-**To confirm with D4U:** (1) that the Finanzleitung should only see the projects it leads; (2) whether "Finanzleitung" is still needed as a separate role at all. After this change it behaves exactly like a Projektleitung, so the two could be merged. That's a separate change, not made here.
+Regression test: `d4u_backend/scripts/test-project-scoped-reads.sh` (a Finance Manager sees every project and uploads anywhere; a Project Manager stays scoped).
 
-**Deploy:** 0032 only narrows reads, so it can be applied before or after the matching backend and webapp. Apply it in the SQL editor, then deploy both.
+**Deploy:** apply 0032, 0033, 0034 and 0035 in order in the SQL editor, then deploy the backend and webapp. 0035 only widens a Finance Manager's reads, so applying it before the deploys is safe; until the backend is deployed, `POST /api/expenses` still refuses a Finance Manager on a project they don't lead.
+
+---
+
+## 2G. Confirmed by D4U: e-mail-only notifications, and no approval step for Vorschüsse (13 Oct 2026)
+
+**Source:** D4U, stated on a call with Michael on 13 Oct 2026. **Not yet in writing.** Put both points into the same written follow-up as the other open confirmations (§20), so they're on record in writing.
+
+### Notifications: RocketChat is cancelled, e-mail only
+
+**What was asked:** whether notifications go out by RocketChat DM with e-mail as fallback (§14, original spec).
+
+**What was confirmed:** RocketChat is cancelled. Notifications are sent **only by e-mail**.
+
+**What it changes:**
+- §1's Notifications row, §14 and §25's variable list now describe e-mail only.
+- `ROCKETCHAT_WEBHOOK_URL` is dropped.
+- The obsolete `notify_slack_channel` setting was removed from the Einstellungen tab on 13 Oct 2026 (label deleted, key hidden).
+- SPF/DKIM (§18) is now a required launch item, not an "if email fallback is enabled" one.
+- A minimal notification-only n8n instance (§0) no longer has a job to do.
+
+The implementation plan is `d4u_backend/documentation/EMAIL_NOTIFICATIONS_IMPLEMENTATION_PLAN.md`.
+
+**What's still open:**
+- which provider sends the e-mails (D4U's Microsoft 365 via Graph, or an EU transactional provider)
+- which events send an e-mail (a proposed default is in the plan)
+- reminder cadence (already open)
+
+### Vorschuss: no approval step
+
+**What was asked:** §2D's question. Should a partner advance need an in-system Accounting (and, above the limit, CEO) approval before payout/Obligo?
+
+**What was confirmed:** no. Vorschüsse need no approval in the system. This closes §2D and confirms the rule in §8 and §11 Stage 1 as it stands.
+
+**What it changes:** no behaviour. Leftovers that suggested an approval step were removed (below).
+- A new advance still goes straight to `submitted_unverified` and reserves its Obligo when created.
+- The unused `settings.advance_requires_ceo_approval` switch is deleted (migration 0034).
+- The €1,000 `approval_limit` doesn't apply to advances.
+- Accounting's later confirmation of the reconciliation (`advance_reconcile`) books the money. It isn't an approval of the advance, and it's unchanged.
+
+**What's still open:** nothing for this question.
 
 ---
 
@@ -427,15 +469,15 @@ Every administrative modification should be traceable independently of financial
 
 Key/value settings table.
 
-One confirmed setting is: advance_requires_ceo_approval = false
+`advance_requires_ceo_approval` was a switch for an approval step on Vorschüsse. It was always `false` and nothing acted on it. Vorschüsse need no approval in the system (§2G), so the row was deleted by migration 0034; the audit trigger keeps its last value in `admin_audit_log`.
 
-This is not merely a default — the current confirmed rule is that Vorschuss approval takes place outside the system and the system therefore does not introduce another approval gate.
+`notify_slack_channel` (the RocketChat channel, if the row exists in the live database; no migration creates it) is obsolete since §2G. Its label was deleted and the key is hidden in the Einstellungen tab (13 Oct 2026).
 
 ---
 
-## 9. Five PostgreSQL financial RPC functions
+## 9. PostgreSQL financial RPC functions (five specified, six built)
 
-The old timeline refers to four RPCs. That is now outdated. The current specification has five. **This section is entirely unaffected by the §0 architecture revision** — these were always meant to be Postgres functions, called by whichever layer sits in front of them (n8n or the custom backend).
+The old timeline refers to four RPCs. That is now outdated. The current specification has five. **A sixth, `advance_split` (migration 0018), was added with the Vorschuss redesign (§2C, §2E).** Its contract is in `d4u_backend/CONTRIBUTING.md`. Since migration 0028, `reassign_expense` takes a proposal id instead of a free destination. **This section is entirely unaffected by the §0 architecture revision** — these were always meant to be Postgres functions, called by whichever layer sits in front of them (n8n or the custom backend).
 
 ### 9.1 budget_update(expense_id)
 
@@ -463,9 +505,9 @@ It may move an expense to: another project; another budget group; potentially an
 
 Reassignment is blocked once the expense is paid or reconciled.
 
-**Updated per §2A: this RPC is no longer called directly by whichever role initiates the reassignment.** Every Umwidmung now requires Accounting approval before execution — the RPC should only ever be invoked by the backend route handling _Accounting's approval action_, never by the initiating role's request action. Concretely: the request step writes `reassignment_requested` to `approval_logs` and does not touch `expenses` or call this RPC at all; only Accounting's approval step calls `reassign_expense`, and it should be the same call site that then logs `reassignment_approved` immediately followed by `reassigned_budget_line`. CEO does not have direct execute permission on this RPC under the current confirmation (see §2A for the caveat on how that was phrased). Which role(s) may perform the _request_ step is still unconfirmed — do not hardcode this to Finance Manager alone without checking, since only the approval side (Accounting) and one exclusion (CEO, from direct execution) have actually been confirmed.
+**Updated per §2A: this RPC is no longer called directly by whichever role initiates the reassignment.** Every Umwidmung now requires Accounting approval before execution — the RPC should only ever be invoked by the backend route handling _Accounting's approval action_, never by the initiating role's request action. Concretely: the request step writes `reassignment_requested` to `approval_logs` and does not touch `expenses` or call this RPC at all; only Accounting's approval step calls `reassign_expense`, and it should be the same call site that then logs `reassignment_approved` immediately followed by `reassigned_budget_line`. CEO does not have direct execute permission on this RPC under the current confirmation (see §2A for the caveat on how that was phrased). The _request_ step may be performed by Finance Manager, Project Manager or CEO (§2C). Since 24 Sep 2026 the proposer chooses the destination and Accounting approves or rejects exactly that (migration 0028, 🟡 pending D4U's confirmation).
 
-Whether a same-group, cost-center-only change needs to be its own supported Umwidmung variant remains open.
+A same-group, cost-center-only change is not its own variant. It goes through the same propose → approve flow (closed 5 Sep 2026, recorded in `d4u_backend/CONTRIBUTING.md`).
 
 ### 9.5 undo_approval(expense_id, reason)
 
@@ -519,11 +561,11 @@ The detailed state machine, including 90-day archival, is defined in v2.
 
 **Accounting submits own expense:** submitted → awaiting_payment. No approval.
 
-**Finance Manager submits own expense:** Not decided yet. This must not be hard-coded until D4U confirms the approver.
+**Finance Manager submits own expense:** ~~Not decided yet.~~ Routes on amount against their own `approval_limit`, like anyone else (§2C).
 
 ### Missing value
 
-The documentation consistently refers to "under threshold" and "over threshold", but the supplied materials do not provide the actual monetary threshold. That number is therefore another required configuration/decision before the approval router can be considered complete — this applies identically whether the router lives in n8n or the custom backend.
+**Resolved (§2C):** the threshold is each submitter's `approval_limit`, currently €1,000. Original note: the documentation consistently refers to "under threshold" and "over threshold", but the supplied materials do not provide the actual monetary threshold. That number is therefore another required configuration/decision before the approval router can be considered complete — this applies identically whether the router lives in n8n or the custom backend.
 
 ---
 
@@ -581,11 +623,13 @@ Depending on user and state, it shows only the valid actions: Approve; Reject; R
 
 Invalid actions should not simply appear disabled; the current specification says they should not be shown at all. This determination is made by the backend (role + status), and the frontend renders whatever the backend authorizes — never a client-side-only permission check.
 
-**Updated per §2A: "Reassign" is now two distinct actions, not one.** An authorized initiating role sees "Umwidmung vorschlagen" (propose reassignment) on an eligible expense; Accounting sees "Umwidmung genehmigen" (approve reassignment) on expenses with a pending reassignment request, as a distinct pending-action item alongside their other approval work. CEO should not see a direct "Reassign" action at all under the current confirmation. Which role(s) see the "propose" action is still unconfirmed (see §2A) — do not wire this to Finance Manager alone without checking.
+**Updated per §2A: "Reassign" is now two distinct actions, not one.** An authorized initiating role sees "Umwidmung vorschlagen" (propose reassignment) on an eligible expense; Accounting sees "Umwidmung genehmigen" (approve reassignment) on expenses with a pending reassignment request, as a distinct pending-action item alongside their other approval work. CEO should not see a direct "Reassign" action at all under the current confirmation. The "propose" action is shown to Finance Manager, Project Manager and CEO (§2C).
 
 This also supersedes the older Project Plan's separate Approval Inbox concept. Pending actions belong within Visualization/Expense Detail rather than requiring an independent approvals module.
 
 ### Known gaps in the current build vs. this spec (mockup reviewed 1 Sept 2026)
+
+**Historical, not a current backlog (noted 13 Oct 2026).** This list describes the Lovable mockup as of 1 Sep 2026. Most items were since built against the live backend (see `PROJECT_STATUS_AND_OPEN_DECISIONS.md` §4). The Vorschuss staging UI was replaced by the Vorschüsse tab (§2C). Check the running app, not this list, before treating any item as still missing.
 
 A Lovable-built mockup already exists covering Übersicht, Beleg-Upload, Auswertung, Expense Detail, and Verwaltung. Reviewed against this spec, the following gaps were identified and are still outstanding as of this writing — treat this as a concrete backlog, not just narrative:
 
@@ -615,13 +659,15 @@ authenticate/validate incoming action; submit standard expense; route expense fo
 Under the §0 revision, the same behaviour list above becomes a set of typed backend API routes rather than visual workflows, sharing one authorization/state-transition middleware instead of duplicating that check per workflow:
 
 - `POST /api/expenses` — submit standard expense or partner advance
-- `POST /api/expenses/:id/approve` — Finance Manager or CEO approval, threshold-branching
+- `POST /api/expenses/:id/approve` — CEO at `ceo_approval` (additive), Accounting at `accounting_approval` (final); see §2C
 - `POST /api/expenses/:id/reject` — request changes, note required
 - `POST /api/expenses/:id/resubmit`
 - `POST /api/expenses/:id/mark-paid` — Accounting only, calls confirm_payment
-- `POST /api/expenses/:id/undo-approval` — CEO only, awaiting_payment only, reason required
-- `POST /api/expenses/:id/reassign/request` — Umwidmung request, blocked once paid/reconciled; logs `reassignment_requested`; does not call reassign_expense. Initiator role(s) still unconfirmed per §2A.
-- `POST /api/expenses/:id/reassign/approve` — Accounting only; logs `reassignment_approved`, then calls `reassign_expense` and logs `reassigned_budget_line`. This is the only route permitted to call the RPC.
+- `POST /api/expenses/:id/undo-approval` — Accounting or CEO, awaiting_payment only, reason required
+- `POST /api/expenses/:id/reassign/request` — Umwidmung proposal including the destination (Finance Manager, Project Manager or CEO); blocked once paid/reconciled and during Vorschuss reconciliation; logs `reassignment_requested`; does not call reassign_expense.
+- `POST /api/expenses/:id/reassign/approve` — Accounting only; `reassign_expense` applies the open proposal and logs `reassignment_approved` and `reassigned_budget_line`. This is the only route permitted to call the RPC.
+- `POST /api/expenses/:id/reassign/reject` — Accounting only, reason required; logs `reassignment_rejected`.
+- `GET /api/expenses/:id/reassign/proposal`, `GET /api/reassignment-proposals` — the open proposal(s), for Expense Detail and Accounting's list
 - `POST /api/advances/:id/documents-received`
 - ~~`POST /api/advances/:id/reconcile/stage` — parse Excel + match receipts, async job~~ — **never built; superseded, see §2C.** The actual Vorschuss reconciliation flow is:
   - `POST /api/advances/:id/split` — PM uploads the partner's summary Excel; splits the advance into N `awaiting_receipt` child expenses
@@ -630,7 +676,7 @@ Under the §0 revision, the same behaviour list above becomes a set of typed bac
 - `GET /api/expenses/:id/permitted-actions` — not in the original spec; returns the set of actions the backend authorizes for the current user on this expense, backing the "server-authorized UI" rule in §12D/frontend CONTRIBUTING.md
 - `GET /api/expenses/:id/receipt` — not in the original spec; serves the actual receipt file link for Expense Detail (§12D)
 - `POST/PATCH/DELETE /api/admin/*` — users, projects, partners, cost centers, groups, budget lines, settings, all writing to admin_audit_log
-- Scheduled jobs (90-day archive, reminders) run as Vercel Cron or a minimal notification-only n8n instance, not as part of the request-serving API
+- Scheduled jobs (90-day archive, reminders) run as Vercel Cron, not as part of the request-serving API. Neither is built yet. Reminders are planned in `d4u_backend/documentation/EMAIL_NOTIFICATIONS_IMPLEMENTATION_PLAN.md`. Since §2G there's no notification-only n8n instance.
 
 Every route re-checks: JWT → active user → role → current record state → allowed transition, exactly as the original spec required of every n8n webhook — the check itself does not change, only where it is implemented and how many times it is duplicated (once, in shared middleware, instead of per-workflow).
 
@@ -644,7 +690,7 @@ Either way: every webhook or API route should re-check JWT → active user → r
 
 Supabase Auth is confirmed. Unaffected by §0.
 
-Microsoft/Azure SSO is the proposed provider, but Technical Spec v2 still lists confirmation of Microsoft as open. The setup guide describes how to configure it, but even that guide says the provider should be explicitly confirmed first.
+Microsoft/Azure SSO is a confirmed client requirement since 6 Sep 2026 (§2C). It has an implementation plan (`d4u_backend/documentation/MICROSOFT_SSO_IMPLEMENTATION_PLAN.md`), but it's blocked on two D4U decisions (tenant-only login? keep email/password as a fallback?) and on D4U registering the app. Today login is email/password only.
 
 If Microsoft is confirmed: enable Azure provider; use D4U M365 tenant registration; disable ordinary email/password self-registration.
 
@@ -660,9 +706,12 @@ Regular users should have controlled read/upload permissions with no ordinary UP
 
 ### Notifications
 
-Confirmed: notifications are sent for workflow actions via RocketChat DM, with email as fallback if RocketChat delivery fails.
+**Confirmed 13 Oct 2026 (§2G): notifications are sent by e-mail only. RocketChat is cancelled.** This replaces the original "RocketChat DM, with email as fallback" rule.
 
-Under the original spec, n8n sends these. Under the §0 revision, the custom backend calls the RocketChat/email integration directly after a write succeeds, or delegates to a minimal notification-only n8n instance — either is acceptable, since this is not part of the authorization-critical path.
+The backend sends the e-mail itself, after a write has succeeded. A failed e-mail never affects the business outcome: if mail is down, the expense is still approved. Not built yet; the plan is `d4u_backend/documentation/EMAIL_NOTIFICATIONS_IMPLEMENTATION_PLAN.md`. Still open:
+- which provider sends the e-mails
+- which events send one
+- reminder cadence
 
 The database already includes a reminder_sent approval-log action, but the supplied material does not define the exact reminder cadence, so reminder timing still needs to be set.
 
@@ -717,6 +766,8 @@ Implement the following, adjusted for the §0 revision:
 
 **Under the §0 revision:** these two items apply only if a minimal notification-only n8n instance is retained, scoped solely to that instance's admin UI and webhook trigger — not to the core authorization surface, since that no longer runs through n8n. If n8n is dropped entirely, these items are removed from the checklist. In their place, apply standard API-route hardening: rate limiting per route, input validation/schema checks on every request body, and the same audit logging on every write regardless of origin.
 
+**As of 13 Oct 2026:** with RocketChat cancelled (§2G), no n8n instance remains, so the two n8n items are off the checklist. Rate limiting is not built yet; the plan is `d4u_backend/documentation/RATE_LIMITING_IMPLEMENTATION_PLAN.md`. MFA is listed above but not built. `d4u_backend/CONTRIBUTING.md` records it as "mentioned, not requested". If Microsoft SSO goes ahead, Microsoft's own MFA may cover it. Confirm with D4U which of the two applies.
+
 ---
 
 ## 17. Historical data
@@ -745,7 +796,7 @@ Before production, the following should pass. Unaffected in substance by §0 —
 
 **Security:** every role; deactivated user; forged/stale request; direct browser business write fails; incorrect role action fails; invalid state transition fails; receipt access; API/webhook rate limiting; service-role key cannot reach client bundle.
 
-**Operational hardening:** backup restore drill; retry/idempotency test; SPF/DKIM verification if email fallback is enabled; production TLS/DNS; role-specific handover/testing.
+**Operational hardening:** backup restore drill; retry/idempotency test; SPF/DKIM verification for the notification sender (required since e-mail is the only channel, §2G); production TLS/DNS; role-specific handover/testing.
 
 **Added under §0:** automated unit tests for the shared RBAC/state-transition middleware, covering every role × status × action combination; these should run in CI on every commit, not just before launch.
 
@@ -761,79 +812,44 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 
 ## 20. Decisions that still need to be locked before the build is considered final
 
-**Convention for logging new decisions:** when David (or another stakeholder) confirms something new, add a dated subsection formatted like §2A — what was asked, what was confirmed, what it changes, what's still open — rather than just editing the affected line in place elsewhere in this doc. Then: strike the corresponding row from the table below, update the affected sections in the body of this doc (schema, RPCs, frontend, routes) to match, and update the "Open decisions" / "Resolved" lists in both `backend/CONTRIBUTING.md` and `frontend/CONTRIBUTING.md` so the three documents don't drift apart. §2A is the template to copy.
+**Convention for logging new decisions:** when David (or another stakeholder) confirms something new, add a dated subsection formatted like §2A — what was asked, what was confirmed, what it changes, what's still open — rather than just editing the affected line in place elsewhere in this doc. Then: move the corresponding row from the "Still open" table below to the "Closed" log, update the affected sections in the body of this doc (schema, RPCs, frontend, routes) to match, and update the "Open decisions" / "Resolved" lists in both `backend/CONTRIBUTING.md` and `frontend/CONTRIBUTING.md` so the three documents don't drift apart. §2A is the template to copy.
 
-**Newly added under this revision:**
+**Consolidated 13 Oct 2026.** The previous version of this section kept several tables side by side, added at different times. Some rows had already been closed elsewhere: editing before approval, the same-group Umwidmung variant, `permissions[]`, and the §0 architecture blocker. Everything still open is now in one table. Everything closed is in the log below it.
 
-| Priority | Decision required                                                                                        |
-| -------- | -------------------------------------------------------------------------------------------------------- |
-| BLOCKER  | Confirm or reject the §0 architecture revision (custom backend vs. n8n) with David before Phase 3 begins |
+### Still open — needs D4U's decision or written confirmation
 
-**Resolved via email exchange, 25 Aug 2026 — see §2A (removed from this table):**
+| Priority | Decision required | Where |
+| -------- | ----------------- | ----- |
+| BLOCKER  | **Written confirmation.** D4U confirms in writing that the custom backend and in-app reporting replace n8n and Metabase from the original plan. Put the 13 Oct decisions (§2G) in the same written follow-up. | §0 |
+| High     | Metabase: yes or no. Fold this into the same written confirmation. | §15 |
+| High     | Umwidmung: the proposer chooses the destination, and Accounting can only approve or reject it (24 Sep 2026, migration 0028). | §9.4 |
+| High     | Is "Umwidmung of a partner advance only before its Excel split" acceptable, or must reassignment during reconciliation work? | §2E |
+| High     | Confirm no Gutschrift/refund is ever booked as an expense, so `amount > 0` can stay a database rule. | §2E |
+| High     | Microsoft/Azure SSO: restrict to D4U's own tenant? Keep email/password as a fallback? Plus D4U registering the app in its Microsoft 365 tenant. | §14 |
+| High     | E-mail notifications: which provider (D4U's Microsoft 365 via Graph, or an EU transactional provider), and which events send an e-mail. | §2G, §14 |
+| High     | Exact donor-export format. | §15 |
+| Medium   | Reminder cadence. | §14 |
+| Medium   | MFA for Admin, CEO, Finance Manager and Accounting: required (§16), or covered by Microsoft SSO? | §16 |
+| Medium   | Supabase Auth/Storage production hardening (public signup, custom SMTP, redirect URLs, receipts bucket size/MIME limits). Deliberately deferred pending more usage information. | §2C |
+| Medium   | Backups (PITR) and Data Processing Agreements (Supabase, Vercel). Deferred to the very end of the production rollout by agreement, not forgotten. | §2C |
+| Medium   | Environments: only one Supabase project exists, labelled Production. Keep the Local → Staging → Production model, or decide otherwise. | §21 B, §25 |
+| Medium   | Re-estimated effort/timeline. | §23 |
 
-- ~~Values/meaning of a possible sixth "base employee" role~~ — role cancelled, not needed.
-- ~~Whether Accounting/other roles have frontend submit access~~ — confirmed universal across all five roles.
-- ~~Whether `approval_limit` is set per-user and editable~~ — confirmed as designed.
+### Closed — log
 
-**Resolved 5 Sep 2026 — see §2B (removed from this table):**
+- **13 Oct 2026 (§2G):** Vorschuss approval gate (§2D): no gate. Notifications: e-mail only, RocketChat cancelled.
+- **13 Oct 2026 (§2C):** undo of an approval: Accounting or CEO (the original spec had CEO only). Confirmed.
+- **13 Oct 2026 (§2C):** Umwidmung is proposed only by Project Manager, Finance Manager or CEO, and Accounting only approves or rejects; no lighter process for a same-group Umwidmung. Both confirmed.
+- **13 Oct 2026 (§2F):** Finance Manager sees every project and submits on any project; otherwise a Project Manager's permissions. Reverses 0032 (migration 0035). The role stays separate, so the merge question is closed.
+- **13 Oct 2026 (§2C):** approval model confirmed: €1,000 limit per submitter, Accounting final approver, CEO only above the limit, CEO's own expenses to Accounting, Accounting self-approval with log flag, Finance Manager treated like a Project Manager.
+- **13 Oct 2026:** the missing `approval_routing.md`: recreated (§2C). This was a documentation gap, not a decision.
+- **5–6 Sep 2026 (§2C):** Finance Manager's own expenses; the approval threshold (€1,000, per-user `approval_limit`); Finance Manager vs. Accounting authority; Project Manager → project assignment (`lead_user_id`); cost center in one group per project; Accounting overriding an FM approval (moot); Umwidmung initiators; no editing before approval; no same-group Umwidmung variant; `permissions[]` (declined, column stays reserved and unused); custom backend vs. n8n as a development blocker (proceed; the written confirmation stays open above).
+- **5 Sep 2026 (§2B):** how to show the released/unspent Vorschuss balance (Vorschuss-Übersicht, Accounting and CEO only).
+- **25 Aug 2026 (§2A):** sixth "base employee" role (cancelled); universal submit access (confirmed); per-user, editable `approval_limit` (confirmed).
 
-- ~~How to display released/unspent Vorschuss balance~~ — shown, not tracked as a new balance: a Vorschuss-Übersicht panel in Auswertung, Accounting/CEO only.
+### ~~Newly identified structural gap: Project Manager project assignment~~ — resolved 3 Sep 2026
 
-**Resolved 5–6 Sep 2026 — see §2C (removed from this table):**
-
-- ~~Who approves Finance Manager's own expenses?~~ — nobody; FM has no approval role at all, routes on amount like anyone else.
-- ~~What is the actual Finance Manager/CEO monetary approval threshold?~~ — €1,000, per-user `approval_limit`, confirmed final.
-- ~~What exactly differentiates Finance Manager authority from Accounting authority?~~ — Accounting is the universal final approver of every expense; FM approves nothing.
-- ~~How are Project Managers assigned to their "own projects"?~~ — `projects.lead_user_id` is authoritative (one lead per project, always), no `project_members` table needed.
-- ~~Can one cost center belong to multiple groups within one project?~~ — no, enforced by a live DB constraint.
-- ~~Does Accounting have authority to override an FM approval?~~ — moot; there's no FM approval left. Accounting/CEO can both `undo_approval` from `awaiting_payment`.
-- ~~Which role(s) may initiate/request an Umwidmung?~~ — Finance Manager, Project Manager, or CEO, by role alone.
-- ~~Custom backend vs. n8n/Metabase (as a development blocker)~~ — confirmed, proceed with custom backend for now (the written confirmation itself is a separate, still-open item below).
-
-**Added 12 Oct 2026 — built as implementer decisions, see §2E; confirm with D4U in writing:**
-
-| Priority | Decision required                                                                                                             |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| High     | Is "Umwidmung of a partner advance only before its Excel split" acceptable, or must reassignment during reconciliation work? |
-| High     | Confirm no Gutschrift/refund is ever booked as an expense, so `amount > 0` can stay a database rule                          |
-
-**Added 13 Oct 2026 — built as an implementer decision, see §2F; confirm with D4U in writing:**
-
-| Priority | Decision required                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------------------------- |
-| High     | Should the Finanzleitung see only the projects it leads (like a Projektleitung), instead of the whole organisation? |
-| Medium   | Is "Finanzleitung" still needed as a separate role, or should it be merged into Projektleitung?                     |
-
-**Still open, unchanged since the last edit to this document:**
-
-| Priority | Decision required                                                                                                                                                                                                                                   |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BLOCKER  | **Can a submitter edit their own expense pre-approval, or must every correction go through reject/resubmit?** — raised 25 Aug, still not answered; interacts directly with approval-limit-based routing (see §2A)                                    |
-| High     | Does Umwidmung support changing only cost_center_id inside the same group?                                                                                                                                                                            |
-| High     | Values/meaning of permissions[] — a per-user permissions layer on top of role was proposed and declined; column stays reserved/unused, not deleted                                                                                                   |
-| High     | Metabase: yes or no                                                                                                                                                                                                                                    |
-| High     | Exact donor-export format                                                                                                                                                                                                                              |
-| Medium   | Reminder cadence                                                                                                                                                                                                                                       |
-| Medium   | Re-estimated effort/timeline                                                                                                                                                                                                                           |
-
-**Newly identified, see §2C:**
-
-| Priority | Decision required                                                                                                                                                                                                                       |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| High     | `d4u_backend/documentation/approval_routing.md` is cited by both CONTRIBUTING.md files and migration 0009 as the primary source for the approval-routing rewrite, but does not exist in either repo — recreate it or repoint the citations   |
-| High     | Formally close out the approval-routing rewrite's 🟡 status with David in writing — it is implemented and live, but per §2C is explicitly not yet client-confirmed                                                                    |
-| High     | Microsoft/Azure SSO — confirmed client requirement, now has a written implementation plan (~2–3.5 engineering days); blocked entirely on two yes/no decisions from David plus D4U registering the app in their own Microsoft 365 tenant |
-| Medium   | Supabase Auth/Storage production hardening (public signup, custom SMTP, redirect URLs, receipts bucket size/MIME limits) — deliberately deferred pending more usage information                                                       |
-| Medium   | Backups (PITR) and Data Processing Agreements (Supabase, Vercel) — deferred to the very end of the production rollout by agreement, not forgotten                                                                                      |
-| BLOCKER  | Written client confirmation that the custom-backend approach (instead of n8n/Metabase) is acceptable, for the project's own record — see §0                                               |
-
-**Newly raised, see §2D:**
-
-| Priority | Decision required                                                                                                                                                                                                                       |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BLOCKER  | **Should a Vorschuss require an in-system Accounting (and, above the submitter's `approval_limit`, CEO) approval gate before payout/Obligo, reversing the confirmed `advance_requires_ceo_approval = false` rule in §8?** — raised 7 Sep 2026, not yet confirmed; needs written stakeholder sign-off given it also touches the written-confirmation item above |
-
-### Newly identified structural gap: Project Manager project assignment
+**Resolved (§2C):** a project always has exactly one lead, so `projects.lead_user_id` is authoritative and RLS and `POST /api/expenses` enforce it. No `project_members` table was needed. Original note below.
 
 Unchanged by §0. The role model says a Project Manager submits and views their own projects. But projects.lead_user_id is explicitly described as informational only and grants no permission. There is currently no project_members / user_projects mapping table in the 12-table schema.
 
@@ -845,17 +861,23 @@ So, unless each project can only ever have exactly one Project Manager and lead_
 
 ### Conflict A — writes-through-gateway vs. direct Admin writes
 
+**Resolved 5 Sep 2026:** Admin writes go through the backend like every other write; the RLS path that let an Admin session write directly was closed (`PROJECT_STATUS_AND_OPEN_DECISIONS.md` §4a).
+
 Technical Spec v2 and David's clarification say: all business writes through n8n. But the Supabase setup guide says existing Admin records can be modified directly from the client using RLS. Those cannot both be the canonical architecture.
 
 Updated implementation recommendation, unchanged in principle by §0: keep the stricter architecture — Admin modifications also pass through the backend gateway (n8n under the original spec, or the custom API under the §0 revision) and are audited. The special Auth invitation operation can remain server-side, but the service-role design should be reconciled before deployment.
 
 ### Conflict B — Staging vs direct Production
 
+**Still open (13 Oct 2026):** in practice only one Supabase project exists, labelled Production (§25). Whether to add Staging before go-live is in §20.
+
 Technical Specification v2 calls for Local → Staging → Production and labels the model confirmed. The Supabase setup guide later says staging is being skipped and changes are going directly into what becomes production.
 
 For financial software, and given that the v2 architecture explicitly confirms three environments, the consolidated implementation should use Local → Staging → Production unless there has been a deliberate later D4U decision to remove Staging. Unaffected by §0.
 
 ### Conflict C — RLS scope
+
+**Resolved:** the broad read access was found and closed on 5 Sep 2026 (`PROJECT_STATUS_AND_OPEN_DECISIONS.md` §4a). Project-scoped reads for Project Manager (3 Sep) are enforced by RLS; Finance Manager reads organisation-wide (§2F, 13 Oct) and covered by `d4u_backend/scripts/test-project-scoped-reads.sh`.
 
 The role model says Project Managers see their own projects. But the setup guide's RLS test says an ordinary authenticated account can run `select * from public.expenses` and expects it to succeed broadly. That may expose more information than the role matrix intends.
 
@@ -888,7 +910,7 @@ Therefore the RLS policy set should be reviewed together with the missing projec
 
 **Phase 9 — Staging end-to-end acceptance.** Run real-world test scenarios with dummy/staging data. Do not test against real production finance records.
 
-**Phase 10 — Production deployment.** Vercel; Supabase production; reverse proxy/TLS as needed; RocketChat; Hetzner + n8n only if the minimal notification instance is retained; Metabase only if included.
+**Phase 10 — Production deployment.** Vercel; Supabase production; reverse proxy/TLS as needed; e-mail sender with SPF/DKIM (§2G; RocketChat cancelled, so no Hetzner/n8n is needed for notifications); Metabase only if included.
 
 **Phase 11 — Training and handover.** Separate walkthroughs for: Project Managers; Finance Manager; Accounting; CEO; Admin. Admin gets deeper configuration and operational training. Under §0, handover also includes: repo structure, how migrations are run via Supabase CLI, and where the RBAC test suite lives as living documentation of the business rules — relevant given D4U has no in-house IT/ops person.
 
@@ -898,7 +920,7 @@ Therefore the RLS policy set should be reviewed together with the missing projec
 
 The old timeline assumed approximately 15–18 hours/week, a July 27 start, and a mid-October completion target. It scheduled database work first, frontend/n8n in parallel, then reporting, hardening, deployment, testing and handover.
 
-That schedule should no longer be treated as the definitive project estimate: it still refers to four RPCs while the current design has five, Technical Spec v2 itself explicitly lists effort/timeline re-estimation as unresolved, and the §0 architecture revision (if confirmed) further changes the Phase 3-5 estimate. Keep mid-October as the historical target, but do not promise it again until the remaining blockers above — including the architecture decision — are closed and the revised work is re-estimated.
+That schedule should no longer be treated as the definitive project estimate: it still refers to four RPCs while six are built (§9), Technical Spec v2 itself explicitly lists effort/timeline re-estimation as unresolved, and the §0 architecture revision (if confirmed) further changes the Phase 3-5 estimate. Keep mid-October as the historical target, but do not promise it again until the remaining blockers above — including the architecture decision — are closed and the revised work is re-estimated.
 
 ---
 
@@ -930,16 +952,19 @@ Two repos are assumed, matching the two CONTRIBUTING.md files already written: a
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_BACKEND_API_URL`
 
-**Backend (server-only — never bundle these into a client build, never log them):**
+**Backend (server-only — never bundle these into a client build, never log them), as read by the code today (checked 13 Oct 2026; matches `d4u_backend/.env.example`):**
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY` — bypasses RLS; this is the credential §16 refers to as "must never reach the browser bundle." Treat any diff that moves this into a `NEXT_PUBLIC_*` variable or client-side file as a critical bug, not a style issue.
-- `SUPABASE_JWT_SECRET` — for verifying incoming JWTs in the guard middleware, if not using Supabase's own verification helper.
-- `DATABASE_URL` — direct Postgres connection string, needed for running migrations via Supabase CLI; not the same credential as the service-role key and should be scoped/rotated independently.
-- `ROCKETCHAT_WEBHOOK_URL` — for notification fan-out.
-- `EMAIL_FALLBACK_SMTP_*` (host/user/pass) — for the email fallback when RocketChat delivery fails.
-- `APPROVAL_THRESHOLD_EUR` — placeholder for the still-unconfirmed monetary threshold (§20). Read from here (or a `settings` row, whichever is decided), never hardcode a number in route logic.
-- `N8N_WEBHOOK_URL` — only if a minimal notification-only n8n instance is retained per §0.
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — the backend uses these to check a caller's JWT with Supabase (`src/lib/supabase/user-client.ts`); they are the same public values as the frontend's.
+- `CORS_ORIGIN` — the webapp's real origin. Falls back to `http://localhost:3000` if unset, so it **must** be set on every deployed environment.
+
+**Backend, planned (add to `.env.example` when the feature is built):**
+
+- E-mail notifications (§2G): `NOTIFICATIONS_ENABLED` (true on the production deployment only), `APP_BASE_URL`, `EMAIL_FROM`, the chosen provider's credentials, and `CRON_SECRET` for reminders. See `d4u_backend/documentation/EMAIL_NOTIFICATIONS_IMPLEMENTATION_PLAN.md`.
+- `DATABASE_URL` — only once migrations are applied with `supabase db push` (see "Migrations" below); not the same credential as the service-role key and should be scoped/rotated independently.
+
+**Dropped (13 Oct 2026):** `ROCKETCHAT_WEBHOOK_URL` and `EMAIL_FALLBACK_SMTP_*` (RocketChat cancelled, §2G); `N8N_WEBHOOK_URL` (no n8n instance); `APPROVAL_THRESHOLD_EUR` (the threshold is each user's `approval_limit`, §2C); `SUPABASE_JWT_SECRET` (the guard verifies tokens through Supabase, not with the secret).
 
 ### Local development
 
@@ -956,7 +981,7 @@ Local → Staging → Production, per the confirmed (§21 Conflict B resolution)
 
 All schema changes are Supabase CLI migrations (`supabase migration new <name>`), timestamped, checked into the repo, and applied via `supabase db push` (or the CI pipeline's equivalent) — never made by hand through the Supabase dashboard, on any environment including Local. Migrations are append-only: once merged, don't edit a past migration file to fix a mistake — write a new migration that corrects it, so the migration history stays an honest record of how the schema evolved. This matters more than usual here given there's no in-house IT/ops person to reconstruct undocumented dashboard changes later.
 
-**Current reality, not yet the rule above (logged 13 Oct 2026):** no Supabase project is linked for `supabase db push`, so migrations are applied by pasting each file whole into the Supabase SQL editor, in number order (`d4u_backend/README.md`, "Applying migrations"). Merging a migration on GitHub does not apply it anywhere. On 12 Oct 2026 the Production-labelled project turned out to be missing 0022–0028, although 0026 had been merged on 24 Sep; they were applied on 12–13 Oct 2026, followed by 0029–0031 (§2E). 0001–0021 were then checked on 13 Oct 2026 against `d4u_backend/supabase/schema.sql`, a dump of the same project taken on 6 Sep 2026, plus a live `pg_policies` query. Only 0010 was missing: its two `users` read policies, without which Accounting, CEO and FM saw "System" instead of the submitter's name in Verlauf. 0010 was applied on 13 Oct 2026, and `schema.sql` now carries its policies too (`d4u_backend` PR #8). Until `supabase db push` (or CI) applies migrations, every PR that adds one must say in its description that it needs applying, and the person merging applies it in the same step and checks it with a query against the new object. That's how 0022–0031 were verified.
+**Current reality, not yet the rule above (logged 13 Oct 2026):** no Supabase project is linked for `supabase db push`, so migrations are applied by pasting each file whole into the Supabase SQL editor, in number order (`d4u_backend/README.md`, "Applying migrations"). Merging a migration on GitHub does not apply it anywhere. On 12 Oct 2026 the Production-labelled project turned out to be missing 0022–0028, although 0026 had been merged on 24 Sep; they were applied on 12–13 Oct 2026, followed by 0029–0031 (§2E). 0001–0021 were then checked on 13 Oct 2026 against `d4u_backend/supabase/schema.sql`, a dump of the same project taken on 6 Sep 2026, plus a live `pg_policies` query. Only 0010 was missing: its two `users` read policies, without which Accounting, CEO and FM saw "System" instead of the submitter's name in Verlauf. 0010 was applied on 13 Oct 2026, and `schema.sql` now carries its policies too (`d4u_backend` PR #8). Until `supabase db push` (or CI) applies migrations, every PR that adds one must say in its description that it needs applying, and the person merging applies it in the same step and checks it with a query against the new object. That's how 0022–0031 were verified. **0032 and 0033 were merged on 13 Oct 2026, but this document doesn't record them as applied, and 0034 (delete the Vorschuss approval setting) and 0035 (Finance Manager organisation-wide, reverses 0032) are new.** Apply them in order on the Production-labelled project, check each with a query, and note the date here.
 
 ### CI
 
@@ -972,4 +997,4 @@ The cleanest single-sentence description of what is now being built is:
 
 A secure, role-based D4U finance application in which Supabase is the system of record, Next.js provides Upload/Admin/Visualization interfaces, a validated backend layer (custom API under the proposed revision, or n8n under the original spec) controls all finance workflows and notifications, PostgreSQL RPCs guarantee atomic Soll/Ist/Obligo changes, standard expenses move through approval and Accounting payment, partner advances are reconciled deterministically from Excel plus receipts into itemized booked expenses, and every financial/admin action is traceable — with no AI, no Flowwer migration, no partner portal and no full Monkey Office integration in Phase 1.
 
-The database design and core financial model are now sufficiently defined to implement. **As of §2C (5–6 Sep 2026), most of the policy decisions this paragraph used to list as remaining are closed**: the §0 architecture revision, Finance Manager routing/authority, project membership/RLS, the approval threshold, and Umwidmung permissions are all resolved and live in the codebase. What remains is a shorter, different list — see §20's "Still open" and "Newly identified" tables: whether a submitter can self-correct pre-approval, Metabase/export scope, and a set of items that are process/paperwork rather than product decisions (the missing `approval_routing.md` file, closing out the 🟡-marked rewrite with David in writing, Microsoft SSO scoping, Auth/Storage hardening, backups/DPAs, and the custom backend's written confirmation).
+The database design and core financial model are now sufficiently defined to implement. **As of 13 Oct 2026**, the policy decisions this paragraph used to list are closed: the §0 architecture revision (for development), Finance Manager routing/authority, project membership/RLS, the approval threshold, Umwidmung permissions, editing before approval, the Vorschuss approval gate (none, §2G) and the notification channel (e-mail only, §2G). What remains is §20's single "Still open" table. It's mostly written confirmations of what's already built, plus Metabase, the donor export, Microsoft SSO, the e-mail provider and events, reminder cadence, MFA, Auth/Storage hardening, backups/DPAs and the environment setup.

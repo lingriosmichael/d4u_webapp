@@ -1250,8 +1250,6 @@ function PartnersTab({ partners }: { partners: AdminPartner[] }) {
 // them, not as a stand-in for real data.
 const SETTING_LABELS: Record<string, string> = {
   warning_threshold_pct: "Standard-Warnschwelle Budgetauslastung (%)",
-  advance_requires_ceo_approval: "Vorschuss benötigt CEO-Freigabe",
-  notify_slack_channel: "Benachrichtigungs-Kanal (RocketChat)",
   vat_default_rate: "Standard-USt-Satz (%)",
 };
 
@@ -1261,7 +1259,12 @@ const SETTING_LABELS: Record<string, string> = {
 // deleted) as a historical record — this list is what keeps it out of the
 // UI without touching the row. Add a key here if another setting is ever
 // superseded the same way.
-const SUPERSEDED_SETTING_KEYS = new Set(["ceo_approval_threshold_eur"]);
+//
+// `notify_slack_channel` was the RocketChat channel. RocketChat was
+// cancelled on 13 Oct 2026 (implementation doc §2G); no migration creates
+// the row, so it's hidden here in case it was added to the live database
+// by hand.
+const SUPERSEDED_SETTING_KEYS = new Set(["ceo_approval_threshold_eur", "notify_slack_channel"]);
 
 function SettingsTab({ settings }: { settings: AdminSetting[] }) {
   return (
