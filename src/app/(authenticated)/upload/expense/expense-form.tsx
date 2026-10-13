@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { PageContainer, PageHeader } from "@/components/layout/app-shell";
 import { useCurrentUser } from "@/lib/role-context";
 import { fmtEUR } from "@/lib/mock-data";
-import { parseGermanAmount } from "@/lib/parse-amount";
+import { INVALID_AMOUNT_HINT, parseGermanAmount } from "@/lib/parse-amount";
 import type { UploadProject } from "@/lib/supabase/queries/upload-options";
 import { uploadReceipt } from "@/lib/supabase/upload-receipt";
 import { callBackend, BackendError } from "@/lib/api";
@@ -216,6 +216,9 @@ export function StandardExpenseForm({ projects }: { projects: UploadProject[] })
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                 />
+                {amount.trim() !== "" && isNaN(amountNum) && (
+                  <p className="text-[11px] text-destructive mt-1">{INVALID_AMOUNT_HINT}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="invoice" className="text-xs">
