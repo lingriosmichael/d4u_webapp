@@ -42,6 +42,8 @@ Two entry points: Standardbeleg and Partner-Vorschuss — these have genuinely d
 
 Rewritten 5 Sep 2026 (`d4u_backend/documentation/approval_routing.md`): Finance Manager is **not** part of the approval chain at all anymore — never reference "Finanzleitung" as a reviewer in this UI's copy. Accounting is the universal final approver of every standard expense; CEO reviews _first_, additively, only when the amount exceeds the submitter's own `approval_limit` (a per-user number set in Verwaltung, not a single org-wide figure — don't imply everyone shares one threshold). Existing copy already reflects this ("wird je nach Betrag ggf. zunächst von der Geschäftsführung und abschließend immer von der Buchhaltung geprüft" on Beleg-Upload) — keep new copy in the same spirit: describe it as conditional-then-universal, not a fixed named sequence.
 
+🟡 Since 13 Oct 2026 (d4u_backend migration 0032, pending D4U's confirmation — implementation doc §2F): Finance Manager is also **scoped like a Project Manager** — only projects they lead, on Übersicht, Auswertung and both upload forms, and the database's RLS enforces the same. Filter project lists with `projectsVisibleTo()` / `isProjectScopedRole()` from `src/lib/project-scoped-roles.ts`, never with `role === "project_manager"`.
+
 No AI prefill, no OCR — don't add "smart" receipt scanning even if it seems like an obvious UX win; it's explicitly out of scope for Phase 1.
 
 ### Auswertung (reporting)
@@ -50,7 +52,7 @@ Recharts-based dashboard: Soll/Ist/Obligo per project, utilization bars that shi
 
 Do not add a "Metabase öffnen" button or any Metabase reference — whether Metabase is used at all is an open decision, not something the UI should presuppose.
 
-**Vorschuss-Übersicht (confirmed 5 Sep 2026):** a role-gated table, visible only when `user.role` is `accounting` or `ceo` — gate it in the app layer, not RLS, since `expenses`/`partners` reads are already broader under RLS (also `finance_manager`, `admin`). Lists every partner advance with its original amount, the reconciled amount, and the released/unspent difference (`amount - reconciled_amount`, computed at render time — never stored). Both open (`submitted_unverified`) and reconciled advances are listed; show "—" for the reconciled/released/date columns on an advance that hasn't been reconciled yet. See `src/lib/supabase/queries/visualization.ts`'s `getAdvanceOverview()`.
+**Vorschuss-Übersicht (confirmed 5 Sep 2026):** a role-gated table, visible only when `user.role` is `accounting` or `ceo` — gate it in the app layer, not RLS, since `expenses`/`partners` reads are already broader under RLS (`admin` reads every expense; every active user reads `partners`). Lists every partner advance with its original amount, the reconciled amount, and the released/unspent difference (`amount - reconciled_amount`, computed at render time — never stored). Both open (`submitted_unverified`) and reconciled advances are listed; show "—" for the reconciled/released/date columns on an advance that hasn't been reconciled yet. See `src/lib/supabase/queries/visualization.ts`'s `getAdvanceOverview()`.
 
 ### Verwaltung (Admin)
 

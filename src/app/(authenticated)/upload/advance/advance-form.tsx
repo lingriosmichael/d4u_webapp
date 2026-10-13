@@ -9,6 +9,7 @@ import { fmtEUR } from "@/lib/mock-data";
 import { INVALID_AMOUNT_HINT, parseGermanAmount } from "@/lib/parse-amount";
 import type { UploadProject, UploadPartner } from "@/lib/supabase/queries/upload-options";
 import { callBackend, BackendError } from "@/lib/api";
+import { projectsVisibleTo } from "@/lib/project-scoped-roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,11 +39,7 @@ export function AdvanceForm({
   const { user } = useCurrentUser();
   const router = useRouter();
 
-  const availableProjects = useMemo(
-    () =>
-      user.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects,
-    [user, projects],
-  );
+  const availableProjects = useMemo(() => projectsVisibleTo(user, projects), [user, projects]);
 
   const [projectId, setProjectId] = useState("");
   const [groupId, setGroupId] = useState("");

@@ -75,7 +75,7 @@ There are five roles, not four. **Read together with §2C: Finance Manager's app
 | Role            | Main responsibility                                      |
 | --------------- | -------------------------------------------------------- |
 | project_manager | Submit expenses for own projects                         |
-| finance_manager | Under-threshold approval; elevated operational role      |
+| finance_manager | Submit for own projects; scoped like project_manager (§2F) |
 | accounting      | Final financial authority, payments, reconciliation      |
 | ceo             | Over-threshold/escalated approvals and approval reversal |
 | admin           | System configuration only; never financial approval      |
@@ -95,7 +95,7 @@ Accounting is explicitly described as holding greater financial authority than F
 - submit expenses;
 - approve/reject normal expenses below the configured threshold;
 - may initiate an Umwidmung (Reassign) request — see §2A; whether other roles may also initiate one is still unconfirmed;
-- org-wide visualization.
+- ~~org-wide visualization~~ — since 13 Oct 2026 sees only projects they lead plus their own submissions, exactly like a Project Manager (§2F).
 
 **Accounting**
 
@@ -262,6 +262,26 @@ Engineering changes in the same set, with no business-rule change (for §9's RPC
 - `undo_approval` only accepts `ceo_approval` or `accounting_approval` as the status an undo routes to (0030).
 - `advance_split` refuses line items without a positive gross amount, local amount and exchange rate (`D4401`); `confirm_payment` refuses a missing or out-of-range VAT rate (`D4103`) and a missing net amount (`D4101`) (0031).
 - The system now has six RPCs, not five: `advance_split` (0018) is the sixth, and `reassign_expense` takes a proposal id since 0028.
+
+---
+
+## 2F. Finance Manager is scoped like a Project Manager (13 Oct 2026, 🟡 pending D4U's written confirmation)
+
+**Status: built (d4u_backend migration 0032 plus matching backend and webapp changes), decided on the implementer side, not yet confirmed by D4U in writing.**
+
+**What was wrong:** the original model gave the Finance Manager approval authority, and organisation-wide read access to go with it (§2: "org-wide visualization"; `is_org_wide_reader()` in 0001). The approval role was removed on 5 Sep 2026 (§2C), but the read access stayed. A Finance Manager could still see every project's expenses, approval history, user names and receipts, the same as Accounting and the CEO, and could submit to any project.
+
+**Decision:** the Finance Manager has exactly the Project Manager's scope. That means only projects they lead (`projects.lead_user_id`) plus their own submissions, in every place the scope is applied:
+- RLS on `expenses`, `approval_logs` and `users`: `is_org_wide_reader()` is now Accounting, CEO and Admin only;
+- the receipts storage bucket;
+- `POST /api/expenses`;
+- the project lists on Übersicht, Auswertung and both upload forms.
+
+Nothing else about the role changes. It still approves nothing and may still propose an Umwidmung (§2A). The Belege-Übersicht and Vorschuss-Übersicht were already restricted to Accounting and the CEO. Regression test: `d4u_backend/scripts/test-project-scoped-reads.sh`.
+
+**To confirm with D4U:** (1) that the Finanzleitung should only see the projects it leads; (2) whether "Finanzleitung" is still needed as a separate role at all. After this change it behaves exactly like a Projektleitung, so the two could be merged. That's a separate change, not made here.
+
+**Deploy:** 0032 only narrows reads, so it can be applied before or after the matching backend and webapp. Apply it in the SQL editor, then deploy both.
 
 ---
 
@@ -776,6 +796,13 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | High     | Is "Umwidmung of a partner advance only before its Excel split" acceptable, or must reassignment during reconciliation work? |
 | High     | Confirm no Gutschrift/refund is ever booked as an expense, so `amount > 0` can stay a database rule                          |
+
+**Added 13 Oct 2026 — built as an implementer decision, see §2F; confirm with D4U in writing:**
+
+| Priority | Decision required                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------------- |
+| High     | Should the Finanzleitung see only the projects it leads (like a Projektleitung), instead of the whole organisation? |
+| Medium   | Is "Finanzleitung" still needed as a separate role, or should it be merged into Projektleitung?                     |
 
 **Still open, unchanged since the last edit to this document:**
 

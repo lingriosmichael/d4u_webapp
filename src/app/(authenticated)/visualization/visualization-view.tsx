@@ -17,6 +17,7 @@ import { ArrowLeft, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExpenseFilterBar } from "./expense-filter-bar";
 import { computeBudgetFigures, BUDGET_LABELS, type BudgetFigures } from "@/lib/budget-figures";
+import { projectsVisibleTo } from "@/lib/project-scoped-roles";
 import { VisualizationTabs } from "./visualization-tabs";
 
 // Converted from lib/mock-data.ts to real Supabase reads (server-fetched,
@@ -49,13 +50,11 @@ export async function Visualization({
   const { projects, statusByProject, pendingCount, openAdvancesCount } =
     await getVisualizationOverview();
 
-  const visibleProjects =
-    user?.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects;
+  const visibleProjects = user ? projectsVisibleTo(user, projects) : [];
 
   // Vorschuss-Übersicht and Belege-Übersicht are both Accounting/CEO only
-  // (confirmed decisions) — RLS reads are broader (also finance_manager,
-  // admin), so this is an app-level gate, same pattern as the
-  // project_manager filter above.
+  // (confirmed decisions) — RLS reads are broader (also admin), so this is
+  // an app-level gate, same pattern as the project-scoped filter above.
   const canSeeAdvances = user?.role === "accounting" || user?.role === "ceo";
   const advances = canSeeAdvances ? await getAdvanceOverview() : [];
 
