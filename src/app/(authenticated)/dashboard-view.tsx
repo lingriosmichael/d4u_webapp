@@ -13,6 +13,7 @@ import {
 } from "@/lib/supabase/queries/dashboard";
 import { ArrowUpRight, TriangleAlert } from "lucide-react";
 import { computeBudgetFigures, BUDGET_LABELS } from "@/lib/budget-figures";
+import { isProjectScopedRole, projectsVisibleTo } from "@/lib/project-scoped-roles";
 
 export async function DashboardView() {
   const user = await getCurrentUserProfile();
@@ -32,8 +33,7 @@ export async function DashboardView() {
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
   const pending = needsActionFor(expenses, user.role, openReassignmentExpenseIds);
-  const visibleProjects =
-    user.role === "project_manager" ? projects.filter((p) => p.leadUserId === user.id) : projects;
+  const visibleProjects = projectsVisibleTo(user, projects);
 
   return (
     <PageContainer>
@@ -102,7 +102,7 @@ export async function DashboardView() {
             Budget-Status
           </h2>
           <p className="text-muted-foreground text-sm mt-1">
-            {user.role === "project_manager"
+            {isProjectScopedRole(user.role)
               ? "Ihre Projekte im Überblick."
               : "Auslastung der laufenden Projekte."}
           </p>

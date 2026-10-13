@@ -96,9 +96,9 @@ export async function getDashboardExpenses(): Promise<DashboardExpense[]> {
   const expenses = data ?? [];
 
   // `users_select_org_wide` (supabase/migrations/0010, d4u_backend) covers
-  // finance_manager/accounting/ceo/admin reading any submitter's name; a
-  // project_manager additionally sees the submitter's name for any expense
-  // on a project they lead. A viewer outside both of those still
+  // accounting/ceo/admin reading any submitter's name; a project_manager or
+  // finance_manager (0032) additionally sees the submitter's name for any
+  // expense on a project they lead. A viewer outside both of those still
   // legitimately gets an empty result for someone else's row —
   // submittedByName degrades to null rather than erroring.
   const submitterIds = [...new Set(expenses.map((e) => e.submitted_by).filter(Boolean))];
