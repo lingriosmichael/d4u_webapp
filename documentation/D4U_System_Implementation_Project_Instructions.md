@@ -283,6 +283,10 @@ Nothing else about the role changes. It still approves nothing and may still pro
 
 **Deploy:** 0032 only narrows reads, so it can be applied before or after the matching backend and webapp. Apply it in the SQL editor, then deploy both.
 
+**Related engineering fixes, same day (no business-rule change; `d4u_backend` migration 0033 and two backend routes):**
+- A Project Manager, and now a Finance Manager, could read only the names of people who *submitted* on their projects. Every step Accounting or the CEO took on their expenses (approval, send-back, payment, undo, Umwidmung decision) therefore showed as "System" in Verlauf. 0033 lets them read the name of anyone who appears in the approval history of their own expenses, and nothing beyond that.
+- `GET /api/expenses/:id/permitted-actions` and `GET /api/expenses/:id/reassign/proposal` answered any logged-in user for any expense id, because they read past RLS. Both now answer only for an expense the caller may see, and 404 otherwise.
+
 ---
 
 ## 3. Database to implement: 12 tables
