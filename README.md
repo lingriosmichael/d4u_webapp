@@ -1,7 +1,7 @@
 # D4U Finance — Frontend
 
 Internal expense-management frontend for D4U (Dialogue for Understanding e.V.). See
-`CONTRIBUTING.md` in this repo and the root workspace `CONTRIBUTING.md` for full context, and
+`CONTRIBUTING.md` in this repo and in `d4u_backend` for full context, and
 `documentation/D4U_System_Implementation_Project_Instructions.md` for the product spec.
 
 ## Brand guardrails
@@ -27,14 +27,34 @@ non-negotiable rule that all writes go through the backend, never Supabase direc
 
 ## Running it locally
 
+Requires **Node.js 22 or newer** (check with `node -v`).
+`@supabase/supabase-js` needs Node's built-in WebSocket, which Node 20
+doesn't have.
+
 ```sh
 npm install
-cp .env.example .env.local   # fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
-                              # NEXT_PUBLIC_BACKEND_API_URL (normally http://localhost:3001)
+cp .env.example .env
 npm run dev
 ```
 
+`.env.example` already holds the Supabase project's URL and publishable
+key — both are safe to be public; Row Level Security, not key secrecy,
+protects the data. Check the three values:
+
+| Variable                        | What to put there                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | The project URL, `https://<project-ref>.supabase.co` (Supabase dashboard → Project Settings → Data API). |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | The **publishable** key, `sb_publishable_…` (Project Settings → API Keys). Never the secret key.         |
+| `NEXT_PUBLIC_BACKEND_API_URL`   | Where `d4u_backend` runs. Locally: `http://localhost:3001`.                                              |
+
 Then open **http://localhost:3000**.
+
+### Logging in
+
+There is no self-registration. An Admin creates each account in the app
+(Verwaltung → Nutzer → Nutzer anlegen) with a role, an approval limit and
+a temporary password, and passes the password on outside the app. At the
+first login the app asks for a new password before anything else.
 
 **This app needs the backend running too** — logging in works on its own
 (that talks to Supabase directly), but submitting an expense, approving
@@ -50,7 +70,7 @@ cd ../d4u_backend && npm run dev
 
 If backend calls start failing with a connection error after previously
 working, check that `NEXT_PUBLIC_BACKEND_API_URL` in this repo's
-`.env.local` still matches the port the backend actually started on — if
+`.env` still matches the port the backend actually started on — if
 port 3001 was already taken, Next.js silently starts it on 3002/3003/...
 instead, and this env var won't follow automatically. `npm run dev` now
 kills anything already bound to port 3000 first (`predev`), so this app
