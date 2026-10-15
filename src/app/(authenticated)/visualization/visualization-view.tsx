@@ -545,7 +545,7 @@ async function ProjectDrilldown({ projectId }: { projectId: string }) {
           const { soll, ist, obligo } = g.status;
           const figures = computeBudgetFigures(soll, ist, obligo);
           // Combined committed spend, not Ist alone (BUG-013,
-          // test-run/findings/BUGS.md) — a budget line that's heavily
+          // QA findings) — a budget line that's heavily
           // committed via Obligo but hasn't paid much out yet is exactly
           // the state this warning exists to catch.
           const utilizationPct = soll > 0 ? ((ist + obligo) / soll) * 100 : 0;

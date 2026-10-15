@@ -10,8 +10,8 @@ import {
 } from "@/lib/supabase/queries/advances";
 import { Card } from "@/components/ui/card";
 
-// The new, non-role-gated "Vorschüsse" tab (test-run/OPEN_DECISIONS.md item
-// #2's replacement design) — every submitter sees their own open advances
+// The new, non-role-gated "Vorschüsse" tab (implementation doc
+// §2C's Vorschuss redesign) — every submitter sees their own open advances
 // here, not just Accounting/CEO's read-only Vorschuss-Übersicht in
 // Auswertung (which stays exactly as it was, untouched by this feature).
 export async function AdvancesView() {

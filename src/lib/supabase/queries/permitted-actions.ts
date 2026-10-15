@@ -6,7 +6,7 @@ import { getFromBackend } from "./backend-read";
 // GET /api/expenses/:id/permitted-actions (see that route and
 // state-machine.ts's getPermittedActions), rather than recomputing
 // role+status locally. This is what expense-detail-view.tsx renders its
-// action panel from now — see test-run/INVENTORY.md §7 finding #1 for why
+// action panel from now — see QA inventory §7 finding #1 for why
 // that mattered.
 export interface PermittedActions {
   approve: boolean;

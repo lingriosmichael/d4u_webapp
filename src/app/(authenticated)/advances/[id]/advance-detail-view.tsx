@@ -33,7 +33,7 @@ import { ArrowLeft, CheckCircle2, FileSpreadsheet, Upload as UploadIcon } from "
 import { toast } from "sonner";
 
 // The split-advance reconciliation flow's action screen
-// (test-run/OPEN_DECISIONS.md item #2's replacement design). Three active
+// (implementation doc §2C's Vorschuss redesign). Three active
 // states share this one page: submitted_unverified (upload the Excel),
 // reconciliation_in_progress (attach a receipt + accounting fields per
 // line), reconciliation_submitted (Accounting reviews and confirms).
@@ -488,7 +488,7 @@ function ChildLineCard({
   );
 }
 
-// `receipts` is a private bucket (see BUG-012, test-run/findings/BUGS.md) --
+// `receipts` is a private bucket (see BUG-012, QA findings) --
 // there is no plain public URL for a document_ref, only a short-lived
 // signed one, generated on demand from the viewer's own RLS-scoped
 // session. This is the one place in the app that actually implements the

@@ -60,7 +60,7 @@ type Mode = "review" | "edit" | "reconcile" | "readonly";
 // user.role + expense.status. This screen used to do exactly that
 // client-side recomputation, which contradicted this repo's own
 // non-negotiable "server-authorized UI, not client-hidden UI" rule (see
-// test-run/INVENTORY.md §7 finding #1). The backend's guard middleware was
+// QA inventory §7 finding #1). The backend's guard middleware was
 // always the real enforcement, but the button that showed or didn't show
 // was drifting from it independently — this makes them the same source of
 // truth.
