@@ -325,6 +325,10 @@ The implementation plan is `d4u_backend/documentation/EMAIL_NOTIFICATIONS_IMPLEM
 
 **What's still open:** nothing for this question.
 
+**Related engineering fixes, same day (no business-rule change; `d4u_backend` migration 0033 and two backend routes):**
+- A Project Manager, and now a Finance Manager, could read only the names of people who *submitted* on their projects. Every step Accounting or the CEO took on their expenses (approval, send-back, payment, undo, Umwidmung decision) therefore showed as "System" in Verlauf. 0033 lets them read the name of anyone who appears in the approval history of their own expenses, and nothing beyond that.
+- `GET /api/expenses/:id/permitted-actions` and `GET /api/expenses/:id/reassign/proposal` answered any logged-in user for any expense id, because they read past RLS. Both now answer only for an expense the caller may see, and 404 otherwise.
+
 ---
 
 ## 3. Database to implement: 12 tables
