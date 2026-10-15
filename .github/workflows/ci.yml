@@ -24,9 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 22+ is required: @supabase/supabase-js 2.114+ needs Node's native
+      # WebSocket and throws in createClient() on Node 20. Keep in step with
+      # package.json "engines" and d4u_backend's CI.
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
 
       - run: npm ci
