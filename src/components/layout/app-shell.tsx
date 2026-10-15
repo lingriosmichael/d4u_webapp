@@ -39,8 +39,8 @@ const primaryNav: NavItem[] = [
   { to: "/", label: "Übersicht", icon: LayoutGrid, exact: true },
   { to: "/upload", label: "Beleg-Upload", icon: Upload },
   // Not role-gated -- whoever submitted a partner advance handles its
-  // reconciliation themselves (test-run/OPEN_DECISIONS.md item #2's
-  // replacement design), unlike Auswertung's read-only Vorschuss-Übersicht,
+  // reconciliation themselves (implementation doc §2C's
+  // Vorschuss redesign), unlike Auswertung's read-only Vorschuss-Übersicht,
   // which stays Accounting/CEO-only.
   { to: "/advances", label: "Vorschüsse", icon: HandCoins },
   { to: "/visualization", label: "Auswertung", icon: BarChart3 },

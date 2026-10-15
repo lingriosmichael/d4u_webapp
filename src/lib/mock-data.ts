@@ -12,8 +12,7 @@
 export type Role = "project_manager" | "finance_manager" | "accounting" | "ceo" | "admin";
 
 // Verified directly against the live expenses_status_check constraint
-// (2026-09-03, pg_get_constraintdef — see d4u_backend/documentation/
-// OPEN_DECISIONS.md). Two values this file previously guessed
+// (2026-09-03, pg_get_constraintdef). Two values this file previously guessed
 // ("submitted_pending", "rejected") don't actually exist in the schema;
 // "submitted" and "draft" do. Nothing currently produces a persisted
 // "draft" row (every real create-expense route writes further along).
@@ -22,7 +21,7 @@ export type Role = "project_manager" | "finance_manager" | "accounting" | "ceo" 
 // approval role under the new model; Accounting is the universal final
 // approver, gated only by whether CEO review happens first.
 // Three added by migration 0017 for the split-advance reconciliation flow
-// (test-run/OPEN_DECISIONS.md item #2) — see d4u_backend/src/types/domain.ts
+// (implementation doc §2C) — see d4u_backend/src/types/domain.ts
 // for the full status-flow comment.
 export type ExpenseStatus =
   | "draft"

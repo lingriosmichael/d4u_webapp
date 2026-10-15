@@ -189,7 +189,7 @@ This section closes several items that were still open in §20 as of the last ed
 
 **Resolved 13 Oct 2026:** `d4u_backend/documentation/approval_routing.md` was recreated from the two CONTRIBUTING.md files, this section and `state-machine.ts`. It records no new decision, and this section remains the canonical record. Original note:
 
-**Source-document gap, flag before trusting anything below at face value:** `d4u_backend/CONTRIBUTING.md`, `d4u_webapp/CONTRIBUTING.md`, and migration `0009_approval_limit_and_routing_model.sql` all cite `d4u_backend/documentation/approval_routing.md` as the primary source for this rewrite, marking it 🟡 "implementer decision, not yet confirmed by the client in writing." That file does not exist anywhere in either repo as of this writing — only `d4u_backend/documentation/OPEN_DECISIONS.md` survives. Either the file was never committed, or it was deleted without updating the three places that still point to it. This needs a fix (recreate it from the two CONTRIBUTING.md files' content, or repoint the citations) before treating the 🟡 status as anything other than "still not confirmed by David in writing" — the missing file doesn't change that status, but it does mean there's currently no single authoritative document for this rewrite, which is exactly the kind of drift §20's logging convention exists to prevent.
+**Source-document gap, flag before trusting anything below at face value:** `d4u_backend/CONTRIBUTING.md`, `d4u_webapp/CONTRIBUTING.md`, and migration `0009_approval_limit_and_routing_model.sql` all cite `d4u_backend/documentation/approval_routing.md` as the primary source for this rewrite, marking it 🟡 "implementer decision, not yet confirmed by the client in writing." That file does not exist anywhere in either repo as of this writing. Either the file was never committed, or it was deleted without updating the three places that still point to it. This needs a fix (recreate it from the two CONTRIBUTING.md files' content, or repoint the citations) before treating the 🟡 status as anything other than "still not confirmed by David in writing" — the missing file doesn't change that status, but it does mean there's currently no single authoritative document for this rewrite, which is exactly the kind of drift §20's logging convention exists to prevent.
 
 ### Approval routing rewrite (confirmed by D4U, recorded 13 Oct 2026, not yet in writing)
 
@@ -200,7 +200,7 @@ This section closes several items that were still open in §20 as of the last ed
 - **The monetary threshold is confirmed at €1,000, per-user, not org-wide** — closes "What is the actual Finance Manager/CEO monetary approval threshold?" It is not a single figure everyone shares; each user's own `approval_limit` row is what's compared against their own submission amount.
 - **Accounting is the universal final approver.** Status flow: `submitted` → (amount ≤ submitter's limit) → `accounting_approval`, or (amount > limit) → `ceo_approval` → `accounting_approval` → `awaiting_payment` → `paid`. CEO approval is additive, never terminal — it always still passes through `accounting_approval`.
 - **Self-submission special cases, not generalized:** CEO's own expense skips straight to `accounting_approval`. Accounting's own expense also lands at `accounting_approval` at any amount, which makes it unavoidably self-approved — **accepted as a risk, not silently allowed**: every such routing decision logs a `self_approval_flagged` row (`approval_logs`). David explicitly declined the two further compensating controls that were proposed (a standing audit query, a CEO/Admin dashboard tile) — the log flag is the only one built, and that's final. Finance Manager's own expense has no special case — routes on amount like anyone else, closing the last open self-submission question.
-- **No editing a submitted expense before approval, ever.** Every correction goes through reject (note required) → resubmit. This closes the item §2A left unanswered. It's recorded as confirmed in `PROJECT_STATUS_AND_OPEN_DECISIONS.md` §3.5 and `d4u_backend/CONTRIBUTING.md`, and was added here on 13 Oct 2026 so §2C holds the whole bundle.
+- **No editing a submitted expense before approval, ever.** Every correction goes through reject (note required) → resubmit. This closes the item §2A left unanswered. It's recorded as confirmed in `d4u_backend/CONTRIBUTING.md`, and was added here on 13 Oct 2026 so §2C holds the whole bundle.
 - **Undo-approval authority widened to Accounting and CEO** (was CEO-only in §9.5/§2's original text; confirmed by D4U 13 Oct 2026) — closes "Does Accounting have authority to override an FM approval?" in spirit (there's no FM approval left to override; Accounting can now undo any `awaiting_payment` expense itself, same as CEO).
 - **`expenses_status_check` (migration 0009, then 0017) now allows:** `draft, submitted, ceo_approval, accounting_approval, needs_changes, awaiting_payment, paid, submitted_unverified, reconciled, awaiting_receipt, reconciliation_in_progress, reconciliation_submitted`. §10's state-machine diagram only shows a subset of these and should be read as the standard-expense path only, not the full enum (see the Vorschuss redesign below for the advance-only statuses).
 - **`approval_logs_action_check` gained:** `self_approval_flagged`, `reassignment_requested`, `escalated_to_ceo` (migration 0021 — logs the CEO-escalation branch itself, which previously executed correctly but left no audit trail), `advance_split`, `reconciliation_submitted`. `finance_approved` stays in the allowed set for historical rows even though nothing will log it again — not removed, since that would be a destructive migration for no benefit.
@@ -211,7 +211,7 @@ This section closes several items that were still open in §20 as of the last ed
 
 ### Vorschuss reconciliation redesign — supersedes §11's async parse/match/stage pipeline entirely
 
-**The Excel-parsing "deterministic filename matching" design in §11 (Stage 3) was never built, and has been replaced with a different, simpler flow — not merely delayed.** Per `OPEN_DECISIONS.md`'s resolution of 5 Sep 2026, the fully-manual line-item form that was originally meant as an interim stand-in is now the permanent design, and it doesn't work the way §11 describes at all:
+**The Excel-parsing "deterministic filename matching" design in §11 (Stage 3) was never built, and has been replaced with a different, simpler flow — not merely delayed.** As resolved on 5 Sep 2026, the fully-manual line-item form that was originally meant as an interim stand-in is now the permanent design, and it doesn't work the way §11 describes at all:
 
 1. **Split.** The advance's original PM submitter uploads the partner's summary Excel (`POST /api/advances/:id/split`). This immediately splits the single advance placeholder into N real child expenses, each entering status `awaiting_receipt` — visible and actionable right away. Nothing here touches Obligo or Ist; the advance's own Obligo reservation is untouched until final confirm.
 2. **Per-child completion.** The PM attaches a receipt and fills in cost center, VAT rate, booking key, etc. per child (manually — this is deliberately not automated, same "no AI/OCR, no automated matching" rationale as the original spec, just applied to a different mechanism than filename-matching).
@@ -232,9 +232,9 @@ There is no Excel-row-to-receipt-filename matching step, no "flag missing files"
 ### New open items surfaced in this window (not previously in §20)
 
 - ~~**The `approval_routing.md` dangling-reference gap** described at the top of this section.~~ Resolved 13 Oct 2026: file recreated.
-- **Microsoft/Azure SSO** moved from "confirm the provider" to a confirmed client requirement (6 Sep 2026: "Es gab eine Anforderung von D4U: SSO über Microsoft als Login"). **Now has a written implementation plan** (`d4u_backend/documentation/MICROSOFT_SSO_IMPLEMENTATION_PLAN.md`, added after this section was last written): ~2–3.5 engineering days across four phases, fully blocked on D4U for two yes/no decisions (restrict to D4U's own tenant only? fully replace password login or keep it as a fallback?) and on someone with D4U's Microsoft 365 admin access registering the app — nothing here can start from the engineering side alone. See `d4u_backend/CONTRIBUTING.md`'s "Deferred, not forgotten" note and `OPEN_DECISIONS.md` item 7 for the `public.users.id` re-pointing complexity this will require at cutover.
-- **Supabase Auth/Storage production hardening**, deferred by explicit client decision pending more information: public signup still enabled at the Auth level (inconsistent with the admin-provisioned user model), no custom SMTP decision, Auth redirect/site URLs not yet pointed at a real domain, and the `receipts` Storage bucket has no file-size or MIME-type limit configured. See `OPEN_DECISIONS.md` item 5.
-- **Backups (PITR) and Data Processing Agreements** (Supabase + Vercel, GDPR/DSGVO) — agreed as necessary, explicitly scheduled for the very end of the production rollout rather than now. See `OPEN_DECISIONS.md` item 6.
+- **Microsoft/Azure SSO** moved from "confirm the provider" to a confirmed client requirement (6 Sep 2026: "Es gab eine Anforderung von D4U: SSO über Microsoft als Login"). **Now has a written implementation plan:** ~2–3.5 engineering days across four phases, fully blocked on D4U for two yes/no decisions (restrict to D4U's own tenant only? fully replace password login or keep it as a fallback?) and on someone with D4U's Microsoft 365 admin access registering the app — nothing here can start from the engineering side alone. See `d4u_backend/CONTRIBUTING.md`'s "Deferred, not forgotten" note for the `public.users.id` re-pointing complexity this will require at cutover.
+- **Supabase Auth/Storage production hardening**, deferred by explicit client decision pending more information: public signup still enabled at the Auth level (inconsistent with the admin-provisioned user model), no custom SMTP decision, Auth redirect/site URLs not yet pointed at a real domain, and the `receipts` Storage bucket has no file-size or MIME-type limit configured. See §20.
+- **Backups (PITR) and Data Processing Agreements** (Supabase + Vercel, GDPR/DSGVO) — agreed as necessary, explicitly scheduled for the very end of the production rollout rather than now. See §20.
 
 ## 2D. ~~Reopened~~ Closed: should Vorschuss require an in-system approval gate? (raised 7 Sep 2026, closed 13 Oct 2026)
 
@@ -303,8 +303,6 @@ Regression test: `d4u_backend/scripts/test-project-scoped-reads.sh` (a Finance M
 - The obsolete `notify_slack_channel` setting was removed from the Einstellungen tab on 13 Oct 2026 (label deleted, key hidden).
 - SPF/DKIM (§18) is now a required launch item, not an "if email fallback is enabled" one.
 - A minimal notification-only n8n instance (§0) no longer has a job to do.
-
-The implementation plan is `d4u_backend/documentation/EMAIL_NOTIFICATIONS_IMPLEMENTATION_PLAN.md`.
 
 **What's still open:**
 - which provider sends the e-mails (D4U's Microsoft 365 via Graph, or an EU transactional provider)
@@ -629,7 +627,7 @@ This also supersedes the older Project Plan's separate Approval Inbox concept. P
 
 ### Known gaps in the current build vs. this spec (mockup reviewed 1 Sept 2026)
 
-**Historical, not a current backlog (noted 13 Oct 2026).** This list describes the Lovable mockup as of 1 Sep 2026. Most items were since built against the live backend (see `PROJECT_STATUS_AND_OPEN_DECISIONS.md` §4). The Vorschuss staging UI was replaced by the Vorschüsse tab (§2C). Check the running app, not this list, before treating any item as still missing.
+**Historical, not a current backlog (noted 13 Oct 2026).** This list describes the Lovable mockup as of 1 Sep 2026. Most items were since built against the live backend. The Vorschuss staging UI was replaced by the Vorschüsse tab (§2C). Check the running app, not this list, before treating any item as still missing.
 
 A Lovable-built mockup already exists covering Übersicht, Beleg-Upload, Auswertung, Expense Detail, and Verwaltung. Reviewed against this spec, the following gaps were identified and are still outstanding as of this writing — treat this as a concrete backlog, not just narrative:
 
@@ -676,7 +674,7 @@ Under the §0 revision, the same behaviour list above becomes a set of typed bac
 - `GET /api/expenses/:id/permitted-actions` — not in the original spec; returns the set of actions the backend authorizes for the current user on this expense, backing the "server-authorized UI" rule in §12D/frontend CONTRIBUTING.md
 - `GET /api/expenses/:id/receipt` — not in the original spec; serves the actual receipt file link for Expense Detail (§12D)
 - `POST/PATCH/DELETE /api/admin/*` — users, projects, partners, cost centers, groups, budget lines, settings, all writing to admin_audit_log
-- Scheduled jobs (90-day archive, reminders) run as Vercel Cron, not as part of the request-serving API. Neither is built yet. Reminders are planned in `d4u_backend/documentation/EMAIL_NOTIFICATIONS_IMPLEMENTATION_PLAN.md`. Since §2G there's no notification-only n8n instance.
+- Scheduled jobs (90-day archive, reminders) run as Vercel Cron, not as part of the request-serving API. Neither is built yet. Reminders are part of the planned e-mail notifications (§14). Since §2G there's no notification-only n8n instance.
 
 Every route re-checks: JWT → active user → role → current record state → allowed transition, exactly as the original spec required of every n8n webhook — the check itself does not change, only where it is implemented and how many times it is duplicated (once, in shared middleware, instead of per-workflow).
 
@@ -690,7 +688,7 @@ Either way: every webhook or API route should re-check JWT → active user → r
 
 Supabase Auth is confirmed. Unaffected by §0.
 
-Microsoft/Azure SSO is a confirmed client requirement since 6 Sep 2026 (§2C). It has an implementation plan (`d4u_backend/documentation/MICROSOFT_SSO_IMPLEMENTATION_PLAN.md`), but it's blocked on two D4U decisions (tenant-only login? keep email/password as a fallback?) and on D4U registering the app. Today login is email/password only.
+Microsoft/Azure SSO is a confirmed client requirement since 6 Sep 2026 (§2C). It has an implementation plan, but it's blocked on two D4U decisions (tenant-only login? keep email/password as a fallback?) and on D4U registering the app. Today login is email/password only.
 
 If Microsoft is confirmed: enable Azure provider; use D4U M365 tenant registration; disable ordinary email/password self-registration.
 
@@ -708,7 +706,7 @@ Regular users should have controlled read/upload permissions with no ordinary UP
 
 **Confirmed 13 Oct 2026 (§2G): notifications are sent by e-mail only. RocketChat is cancelled.** This replaces the original "RocketChat DM, with email as fallback" rule.
 
-The backend sends the e-mail itself, after a write has succeeded. A failed e-mail never affects the business outcome: if mail is down, the expense is still approved. Not built yet; the plan is `d4u_backend/documentation/EMAIL_NOTIFICATIONS_IMPLEMENTATION_PLAN.md`. Still open:
+The backend sends the e-mail itself, after a write has succeeded. A failed e-mail never affects the business outcome: if mail is down, the expense is still approved. Not built yet. Still open:
 - which provider sends the e-mails
 - which events send one
 - reminder cadence
@@ -766,7 +764,7 @@ Implement the following, adjusted for the §0 revision:
 
 **Under the §0 revision:** these two items apply only if a minimal notification-only n8n instance is retained, scoped solely to that instance's admin UI and webhook trigger — not to the core authorization surface, since that no longer runs through n8n. If n8n is dropped entirely, these items are removed from the checklist. In their place, apply standard API-route hardening: rate limiting per route, input validation/schema checks on every request body, and the same audit logging on every write regardless of origin.
 
-**As of 13 Oct 2026:** with RocketChat cancelled (§2G), no n8n instance remains, so the two n8n items are off the checklist. Rate limiting is not built yet; the plan is `d4u_backend/documentation/RATE_LIMITING_IMPLEMENTATION_PLAN.md`. MFA is listed above but not built. `d4u_backend/CONTRIBUTING.md` records it as "mentioned, not requested". If Microsoft SSO goes ahead, Microsoft's own MFA may cover it. Confirm with D4U which of the two applies.
+**As of 13 Oct 2026:** with RocketChat cancelled (§2G), no n8n instance remains, so the two n8n items are off the checklist. Rate limiting is not built yet. MFA is listed above but not built. `d4u_backend/CONTRIBUTING.md` records it as "mentioned, not requested". If Microsoft SSO goes ahead, Microsoft's own MFA may cover it. Confirm with D4U which of the two applies.
 
 ---
 
@@ -861,7 +859,7 @@ So, unless each project can only ever have exactly one Project Manager and lead_
 
 ### Conflict A — writes-through-gateway vs. direct Admin writes
 
-**Resolved 5 Sep 2026:** Admin writes go through the backend like every other write; the RLS path that let an Admin session write directly was closed (`PROJECT_STATUS_AND_OPEN_DECISIONS.md` §4a).
+**Resolved 5 Sep 2026:** Admin writes go through the backend like every other write; the RLS path that let an Admin session write directly was closed.
 
 Technical Spec v2 and David's clarification say: all business writes through n8n. But the Supabase setup guide says existing Admin records can be modified directly from the client using RLS. Those cannot both be the canonical architecture.
 
@@ -877,7 +875,7 @@ For financial software, and given that the v2 architecture explicitly confirms t
 
 ### Conflict C — RLS scope
 
-**Resolved:** the broad read access was found and closed on 5 Sep 2026 (`PROJECT_STATUS_AND_OPEN_DECISIONS.md` §4a). Project-scoped reads for Project Manager (3 Sep) are enforced by RLS; Finance Manager reads organisation-wide (§2F, 13 Oct) and covered by `d4u_backend/scripts/test-project-scoped-reads.sh`.
+**Resolved:** the broad read access was found and closed on 5 Sep 2026. Project-scoped reads for Project Manager (3 Sep) are enforced by RLS; Finance Manager reads organisation-wide (§2F, 13 Oct) and covered by `d4u_backend/scripts/test-project-scoped-reads.sh`.
 
 The role model says Project Managers see their own projects. But the setup guide's RLS test says an ordinary authenticated account can run `select * from public.expenses` and expects it to succeed broadly. That may expose more information than the role matrix intends.
 
@@ -961,7 +959,7 @@ Two repos are assumed, matching the two CONTRIBUTING.md files already written: a
 
 **Backend, planned (add to `.env.example` when the feature is built):**
 
-- E-mail notifications (§2G): `NOTIFICATIONS_ENABLED` (true on the production deployment only), `APP_BASE_URL`, `EMAIL_FROM`, the chosen provider's credentials, and `CRON_SECRET` for reminders. See `d4u_backend/documentation/EMAIL_NOTIFICATIONS_IMPLEMENTATION_PLAN.md`.
+- E-mail notifications (§2G): `NOTIFICATIONS_ENABLED` (true on the production deployment only), `APP_BASE_URL`, `EMAIL_FROM`, the chosen provider's credentials, and `CRON_SECRET` for reminders.
 - `DATABASE_URL` — only once migrations are applied with `supabase db push` (see "Migrations" below); not the same credential as the service-role key and should be scoped/rotated independently.
 
 **Dropped (13 Oct 2026):** `ROCKETCHAT_WEBHOOK_URL` and `EMAIL_FALLBACK_SMTP_*` (RocketChat cancelled, §2G); `N8N_WEBHOOK_URL` (no n8n instance); `APPROVAL_THRESHOLD_EUR` (the threshold is each user's `approval_limit`, §2C); `SUPABASE_JWT_SECRET` (the guard verifies tokens through Supabase, not with the secret).
