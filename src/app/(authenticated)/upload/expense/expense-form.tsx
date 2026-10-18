@@ -7,6 +7,7 @@ import { PageContainer, PageHeader } from "@/components/layout/app-shell";
 import { useCurrentUser } from "@/lib/role-context";
 import { fmtEUR } from "@/lib/mock-data";
 import { INVALID_AMOUNT_HINT, parseGermanAmount } from "@/lib/parse-amount";
+import { isAllowedInvoiceDate, todayInBerlin } from "@/lib/invoice-date";
 import type { UploadProject } from "@/lib/supabase/queries/upload-options";
 import { uploadReceipt } from "@/lib/supabase/upload-receipt";
 import { callBackend, BackendError } from "@/lib/api";
@@ -44,6 +45,7 @@ export function StandardExpenseForm({ projects }: { projects: UploadProject[] })
   const [description, setDescription] = useState<string>("");
   const [vendor, setVendor] = useState<string>("");
   const [invoiceNumber, setInvoiceNumber] = useState<string>("");
+  const [invoiceDate, setInvoiceDate] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -54,12 +56,15 @@ export function StandardExpenseForm({ projects }: { projects: UploadProject[] })
   const costCenter = groupCostCenters.find((c) => c.id === costCenterId);
 
   const amountNum = parseGermanAmount(amount);
+  const today = todayInBerlin();
+  const invoiceDateAllowed = isAllowedInvoiceDate(invoiceDate, today);
   const isValid =
     projectId &&
     groupId &&
     costCenterId &&
     !isNaN(amountNum) &&
     amountNum > 0 &&
+    invoiceDateAllowed &&
     description.trim().length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,6 +87,7 @@ export function StandardExpenseForm({ projects }: { projects: UploadProject[] })
         description: description.trim(),
         vendorName: vendor.trim() || null,
         invoiceNumber: invoiceNumber.trim() || null,
+        invoiceDate,
         documentRef,
         receiptStatus: documentRef ? "attached" : "missing",
       });
@@ -218,6 +224,27 @@ export function StandardExpenseForm({ projects }: { projects: UploadProject[] })
                 )}
               </div>
               <div>
+                <Label htmlFor="invoice-date" className="text-xs">
+                  Rechnungsdatum <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="invoice-date"
+                  type="date"
+                  className="mt-1.5"
+                  max={today}
+                  value={invoiceDate}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                />
+                {invoiceDate !== "" && !invoiceDateAllowed && (
+                  <p className="text-[11px] text-destructive mt-1">
+                    Das Rechnungsdatum darf nicht in der Zukunft liegen.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
                 <Label htmlFor="invoice" className="text-xs">
                   Rechnungsnummer
                 </Label>
@@ -229,19 +256,18 @@ export function StandardExpenseForm({ projects }: { projects: UploadProject[] })
                   onChange={(e) => setInvoiceNumber(e.target.value)}
                 />
               </div>
-            </div>
-
-            <div>
-              <Label htmlFor="vendor" className="text-xs">
-                Lieferant / Empfänger
-              </Label>
-              <Input
-                id="vendor"
-                className="mt-1.5"
-                placeholder="z. B. Deutsche Bahn AG"
-                value={vendor}
-                onChange={(e) => setVendor(e.target.value)}
-              />
+              <div>
+                <Label htmlFor="vendor" className="text-xs">
+                  Lieferant / Empfänger
+                </Label>
+                <Input
+                  id="vendor"
+                  className="mt-1.5"
+                  placeholder="z. B. Deutsche Bahn AG"
+                  value={vendor}
+                  onChange={(e) => setVendor(e.target.value)}
+                />
+              </div>
             </div>
 
             <div>

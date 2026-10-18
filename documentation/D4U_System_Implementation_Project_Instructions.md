@@ -413,7 +413,9 @@ Default warning threshold: 80%. This is explicitly a soft warning. There is no h
 
 The expense is the central operational record.
 
-Important fields: id, submitted_by, project_id, budget_line_id, cost_center_id, partner_id, reconciles_advance_id, amount, reconciled_amount, description, vendor_name, invoice_number, expense_type, status, receipt_status, document_ref, assigned_approver, paid_at, metadata, created_at, updated_at.
+Important fields: id, submitted_by, project_id, budget_line_id, cost_center_id, partner_id, reconciles_advance_id, amount, reconciled_amount, description, vendor_name, invoice_number, invoice_date, expense_type, status, receipt_status, document_ref, assigned_approver, paid_at, metadata, created_at, updated_at.
+
+**`invoice_date` (added 18 Oct 2026, d4u_backend migration 0036):** the date on the invoice, as a calendar day. Required by `POST /api/expenses` for every new standard expense and not allowed in the future (Europe/Berlin); editable on resubmit. NULL for partner advances, Vorschuss line items (`advance_split` doesn't read the partner Excel's "Date of receipt" yet) and older rows. Needed for funder reporting and the Flowwer pilot import (§2H). The Belege-Übersicht Excel export carries it, together with the invoice number, payment date, file name and Accounting's payment details (net amount, VAT rate, booking key, KSK, supplier VAT ID, address, bank).
 
 ### Expense types
 
@@ -601,7 +603,7 @@ The current application should have three navigable areas, plus a fourth context
 
 ### A. Upload
 
-Used for expense submission. Standard expense form should support at least: project; budget line / group; valid cost center belonging to that group; amount; description; vendor; invoice number where applicable; receipt/document; expense type.
+Used for expense submission. Standard expense form should support at least: project; budget line / group; valid cost center belonging to that group; amount; invoice date (Rechnungsdatum, required since 18 Oct 2026); description; vendor; invoice number where applicable; receipt/document; expense type.
 
 For partner advance: partner becomes relevant; invoice/accounting details are not required at initial payout.
 

@@ -7,7 +7,10 @@ import {
   type ExpenseType,
 } from "@/lib/mock-data";
 import { statusesForResponsibleParty, type ResponsibleParty } from "@/lib/approval-stage-role";
-import type { ExpenseOverviewRow } from "@/lib/expense-overview-structure";
+import type {
+  ExpenseAccountingSummary,
+  ExpenseOverviewRow,
+} from "@/lib/expense-overview-structure";
 
 // Data-access layer for Auswertung. Read-only — no write actions on this
 // screen, so no d4u_backend calls here, only direct Supabase reads (the
@@ -301,13 +304,14 @@ export async function getExpenseOverview(
   if (statuses.length === 0) return [];
 
   const supabase = await createClient();
-  // approval_logs is embedded (not a second .in() query by id) so a long
-  // result list can't overflow the request URL; it supplies when each
-  // Beleg entered its current status.
+  // approval_logs and expense_accounting_details are embedded (not second
+  // .in() queries by id) so a long result list can't overflow the request
+  // URL. approval_logs supplies when each Beleg entered its current status;
+  // the invoice, payment and accounting fields are for the Excel export.
   let query = supabase
     .from("expenses")
     .select(
-      "id, project_id, cost_center_id, status, submitted_by, amount, description, vendor_name, expense_type, created_at, reconciles_advance_id, approval_logs(to_status, created_at)",
+      "id, project_id, cost_center_id, status, submitted_by, amount, description, vendor_name, invoice_number, invoice_date, paid_at, document_ref, expense_type, created_at, reconciles_advance_id, approval_logs(to_status, created_at), expense_accounting_details(booking_key, vat_rate, net_amount, ksk_liable, supplier_vat_id, supplier_address, supplier_bank_name)",
     )
     .in("status", statuses)
     .order("created_at", { ascending: false });
@@ -389,8 +393,42 @@ export async function getExpenseOverview(
       parentAdvanceDescription: parentId
         ? (descriptionById.get(parentId) ?? parentDescriptionById.get(parentId) ?? null)
         : null,
+      invoiceNumber: row.invoice_number ?? null,
+      invoiceDate: row.invoice_date ?? null,
+      paidAt: row.paid_at ?? null,
+      documentRef: row.document_ref ?? null,
+      accounting: accountingSummaryOf(row.expense_accounting_details),
     };
   });
+}
+
+interface AccountingDetailsRow {
+  booking_key: string | null;
+  vat_rate: number | string | null;
+  net_amount: number | string | null;
+  ksk_liable: boolean;
+  supplier_vat_id: string | null;
+  supplier_address: string | null;
+  supplier_bank_name: string | null;
+}
+
+/** expense_accounting_details is keyed by expense_id, so PostgREST embeds
+ * it as one object or null; an array is accepted too, in case the
+ * relationship is ever read as one-to-many. Numerics arrive as strings. */
+function accountingSummaryOf(
+  embedded: AccountingDetailsRow | AccountingDetailsRow[] | null | undefined,
+): ExpenseAccountingSummary | null {
+  const details = Array.isArray(embedded) ? embedded[0] : embedded;
+  if (!details) return null;
+  return {
+    bookingKey: details.booking_key,
+    vatRate: details.vat_rate != null ? Number(details.vat_rate) : null,
+    netAmount: details.net_amount != null ? Number(details.net_amount) : null,
+    kskLiable: details.ksk_liable,
+    supplierVatId: details.supplier_vat_id,
+    supplierAddress: details.supplier_address,
+    supplierBankName: details.supplier_bank_name,
+  };
 }
 
 /** When the Beleg entered its current status: the latest log row that moved
