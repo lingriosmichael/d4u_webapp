@@ -2,6 +2,7 @@ import "server-only";
 import ExcelJS from "exceljs";
 import { statusLabel } from "@/lib/mock-data";
 import { RESPONSIBLE_PARTY_LABELS } from "@/lib/approval-stage-role";
+import { invoiceDateAsExcelDate } from "@/lib/invoice-date";
 import {
   ROW_KIND_LABELS,
   countsTowardTotal,
@@ -26,6 +27,13 @@ import type {
 // the page's counting rule so a pivot or SUMIFS can't double-count a
 // Vorschuss. Who exported it, when, with which filters, and the total go on
 // a second sheet, "Info", rather than above the table.
+//
+// Columns from "Rechnungsnummer" to "Dateiname" (added 18 Oct 2026) are the
+// invoice, payment and accounting fields D4U's Flowwer export carried.
+// Netto, MwSt-Satz, Buchungsschlüssel, KSK and the supplier details exist
+// only once Accounting has marked the Beleg paid. They come after "Eingereicht
+// am" so the earlier columns, and the SUMIFS on the Info sheet, keep their
+// letters.
 
 const DISPLAY_TIME_ZONE = "Europe/Berlin";
 const EURO_FORMAT = '#,##0.00 "€"';
@@ -46,6 +54,17 @@ const COLUMNS: Array<{ header: string; key: string; width: number }> = [
   { header: "Wartet auf", key: "waitingOn", width: 22 },
   { header: "Eingereicht von", key: "submittedBy", width: 24 },
   { header: "Eingereicht am", key: "createdAt", width: 15 },
+  { header: "Rechnungsnummer", key: "invoiceNumber", width: 20 },
+  { header: "Rechnungsdatum", key: "invoiceDate", width: 15 },
+  { header: "Netto (EUR)", key: "netAmount", width: 15 },
+  { header: "MwSt-Satz (%)", key: "vatRate", width: 13 },
+  { header: "Buchungsschlüssel", key: "bookingKey", width: 18 },
+  { header: "KSK-pflichtig", key: "kskLiable", width: 13 },
+  { header: "Bezahlt am", key: "paidAt", width: 13 },
+  { header: "USt-IdNr. Lieferant", key: "supplierVatId", width: 20 },
+  { header: "Adresse Lieferant", key: "supplierAddress", width: 34 },
+  { header: "Bank Lieferant", key: "supplierBankName", width: 24 },
+  { header: "Dateiname", key: "fileName", width: 32 },
   { header: "Gehört zu Vorschuss", key: "parentAdvance", width: 34 },
   { header: "Beleg-ID", key: "id", width: 38 },
   { header: "Vorschuss-ID", key: "parentAdvanceId", width: 38 },
@@ -56,6 +75,12 @@ const COLUMNS: Array<{ header: string; key: string; width: number }> = [
 export function berlinCalendarDate(iso: string): Date {
   const ymd = new Date(iso).toLocaleDateString("en-CA", { timeZone: DISPLAY_TIME_ZONE });
   return new Date(`${ymd}T00:00:00Z`);
+}
+
+/** "BIB-24/<uuid>/Rechnung_42.pdf" → "Rechnung_42.pdf": the receipt's file
+ * name without the storage folders (see upload-receipt.ts). */
+export function receiptFileName(documentRef: string): string {
+  return documentRef.split("/").pop() || documentRef;
 }
 
 function formatBerlinDate(iso: string): string {
@@ -130,14 +155,28 @@ export async function buildExpenseOverviewWorkbook(input: {
       waitingOn: waitingOn(row),
       submittedBy: row.submittedByName,
       createdAt: berlinCalendarDate(row.createdAt),
+      invoiceNumber: row.invoiceNumber,
+      invoiceDate: row.invoiceDate ? invoiceDateAsExcelDate(row.invoiceDate) : null,
+      netAmount: row.accounting?.netAmount ?? null,
+      vatRate: row.accounting?.vatRate ?? null,
+      bookingKey: row.accounting?.bookingKey ?? null,
+      kskLiable: row.accounting ? (row.accounting.kskLiable ? "Ja" : "Nein") : null,
+      paidAt: row.paidAt ? berlinCalendarDate(row.paidAt) : null,
+      supplierVatId: row.accounting?.supplierVatId ?? null,
+      supplierAddress: row.accounting?.supplierAddress ?? null,
+      supplierBankName: row.accounting?.supplierBankName ?? null,
+      fileName: row.documentRef ? receiptFileName(row.documentRef) : null,
       parentAdvance: row.reconcilesAdvanceId ? row.parentAdvanceDescription : null,
       id: row.id,
       parentAdvanceId: row.reconcilesAdvanceId,
     });
   }
   sheet.getColumn("amount").numFmt = EURO_FORMAT;
+  sheet.getColumn("netAmount").numFmt = EURO_FORMAT;
   sheet.getColumn("createdAt").numFmt = DATE_FORMAT;
   sheet.getColumn("statusSince").numFmt = DATE_FORMAT;
+  sheet.getColumn("invoiceDate").numFmt = DATE_FORMAT;
+  sheet.getColumn("paidAt").numFmt = DATE_FORMAT;
   sheet.getRow(1).font = { bold: true };
   sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUMNS.length } };
 

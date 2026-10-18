@@ -30,6 +30,11 @@ function overviewRow(overrides: Partial<ExpenseOverviewRow>): ExpenseOverviewRow
     statusSince: "2026-10-01T09:00:00Z",
     reconcilesAdvanceId: null,
     parentAdvanceDescription: null,
+    invoiceNumber: null,
+    invoiceDate: null,
+    paidAt: null,
+    documentRef: null,
+    accounting: null,
     ...overrides,
   };
 }

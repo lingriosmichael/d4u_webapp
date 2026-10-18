@@ -40,6 +40,9 @@ export interface ExpenseDetail {
   description: string;
   vendor: string | null;
   invoiceNumber: string | null;
+  /** "YYYY-MM-DD"; null for partner advances, Vorschuss line items and
+   * expenses from before d4u_backend migration 0036. */
+  invoiceDate: string | null;
   receiptStatus: ReceiptStatus;
   documentRef: string | null;
   createdAt: string;
@@ -129,6 +132,7 @@ export async function getExpenseDetail(id: string): Promise<ExpenseDetail | null
     description: expense.description,
     vendor: expense.vendor_name,
     invoiceNumber: expense.invoice_number,
+    invoiceDate: expense.invoice_date ?? null,
     receiptStatus: expense.receipt_status,
     documentRef: expense.document_ref,
     createdAt: expense.created_at,

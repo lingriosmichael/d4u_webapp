@@ -31,6 +31,11 @@ function row(overrides: Partial<ExpenseOverviewRow>): ExpenseOverviewRow {
     statusSince: "2026-10-12T23:30:00Z",
     reconcilesAdvanceId: null,
     parentAdvanceDescription: null,
+    invoiceNumber: null,
+    invoiceDate: null,
+    paidAt: null,
+    documentRef: null,
+    accounting: null,
     ...overrides,
   };
 }
@@ -77,6 +82,17 @@ describe("buildExpenseOverviewWorkbook", () => {
       "Wartet auf",
       "Eingereicht von",
       "Eingereicht am",
+      "Rechnungsnummer",
+      "Rechnungsdatum",
+      "Netto (EUR)",
+      "MwSt-Satz (%)",
+      "Buchungsschlüssel",
+      "KSK-pflichtig",
+      "Bezahlt am",
+      "USt-IdNr. Lieferant",
+      "Adresse Lieferant",
+      "Bank Lieferant",
+      "Dateiname",
       "Gehört zu Vorschuss",
       "Beleg-ID",
       "Vorschuss-ID",
@@ -158,6 +174,86 @@ describe("buildExpenseOverviewWorkbook", () => {
       formula: 'SUMIFS(Belege!G2:G5,Belege!H2:H5,"Ja")',
       result: 3,
     });
+  });
+
+  it("exports the invoice, payment and accounting fields of a paid Beleg", async () => {
+    const sheet = (
+      await readBack(
+        await buildExpenseOverviewWorkbook({
+          rows: [
+            row({
+              status: "paid",
+              invoiceNumber: "RE2026/07-2632",
+              invoiceDate: "2026-10-01",
+              // 22:30 UTC on 12 Oct is 13 Oct in Berlin.
+              paidAt: "2026-10-12T22:30:00Z",
+              documentRef: "BIB-24/5d1c2b6e-0000-4000-8000-000000000000/Rechnung_42.pdf",
+              accounting: {
+                bookingKey: "4930",
+                vatRate: 19,
+                netAmount: 1260.92,
+                kskLiable: false,
+                supplierVatId: "DE123456789",
+                supplierAddress: "Musterstraße 1, 10115 Berlin",
+                supplierBankName: "Berliner Sparkasse",
+              },
+            }),
+          ],
+          filters: [],
+          exportedBy: "Katrina Zuchina",
+          exportedAt: EXPORTED_AT,
+        }),
+      )
+    ).getWorksheet("Belege")!;
+    const cells = cellsByHeader(sheet, 2);
+
+    expect(cells["Rechnungsnummer"]).toBe("RE2026/07-2632");
+    expect((cells["Rechnungsdatum"] as Date).toISOString()).toBe("2026-10-01T00:00:00.000Z");
+    expect(cells["Netto (EUR)"]).toBe(1260.92);
+    expect(cells["MwSt-Satz (%)"]).toBe(19);
+    expect(cells["Buchungsschlüssel"]).toBe("4930");
+    expect(cells["KSK-pflichtig"]).toBe("Nein");
+    expect((cells["Bezahlt am"] as Date).toISOString()).toBe("2026-10-13T00:00:00.000Z");
+    expect(cells["USt-IdNr. Lieferant"]).toBe("DE123456789");
+    expect(cells["Adresse Lieferant"]).toBe("Musterstraße 1, 10115 Berlin");
+    expect(cells["Bank Lieferant"]).toBe("Berliner Sparkasse");
+    expect(cells["Dateiname"]).toBe("Rechnung_42.pdf");
+
+    const headers = (sheet.getRow(1).values as unknown[]).slice(1);
+    const column = (header: string) => headers.indexOf(header) + 1;
+    expect(sheet.getRow(2).getCell(column("Netto (EUR)")).numFmt).toBe('#,##0.00 "€"');
+    expect(sheet.getRow(2).getCell(column("Rechnungsdatum")).numFmt).toBe("dd.mm.yyyy");
+    expect(sheet.getRow(2).getCell(column("Bezahlt am")).numFmt).toBe("dd.mm.yyyy");
+  });
+
+  it("leaves the accounting fields empty before a Beleg is paid", async () => {
+    const sheet = (
+      await readBack(
+        await buildExpenseOverviewWorkbook({
+          rows: [row({ invoiceDate: "2026-10-01" })],
+          filters: [],
+          exportedBy: "Katrina Zuchina",
+          exportedAt: EXPORTED_AT,
+        }),
+      )
+    ).getWorksheet("Belege")!;
+    const cells = cellsByHeader(sheet, 2);
+
+    expect((cells["Rechnungsdatum"] as Date).toISOString()).toBe("2026-10-01T00:00:00.000Z");
+    for (const header of [
+      "Rechnungsnummer",
+      "Netto (EUR)",
+      "MwSt-Satz (%)",
+      "Buchungsschlüssel",
+      "KSK-pflichtig",
+      "Bezahlt am",
+      "USt-IdNr. Lieferant",
+      "Adresse Lieferant",
+      "Bank Lieferant",
+      "Dateiname",
+    ]) {
+      expect(cells[header], header).toBeNull();
+    }
   });
 
   it("leaves Wartet auf and the waiting time empty once a Beleg is finished", async () => {

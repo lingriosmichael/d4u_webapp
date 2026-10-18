@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PageContainer, PageHeader, StatusPill } from "@/components/layout/app-shell";
 import { fmtEUR, fmtDate, fmtDateTime, statusLabel, statusTone } from "@/lib/mock-data";
+import { formatInvoiceDate, isAllowedInvoiceDate, todayInBerlin } from "@/lib/invoice-date";
 import type { ExpenseDetail, ReconciledLine } from "@/lib/supabase/queries/expense-detail";
 import type { UploadProject } from "@/lib/supabase/queries/upload-options";
 import type { PermittedActions } from "@/lib/supabase/queries/permitted-actions";
@@ -201,6 +202,9 @@ export function ExpenseDetailView({
                   value={<span className="font-mono">{expense.invoiceNumber}</span>}
                 />
               )}
+              {expense.invoiceDate && (
+                <MetaRow label="Rechnungsdatum" value={formatInvoiceDate(expense.invoiceDate)} />
+              )}
               <MetaRow label="Beleg" value={receiptLabel(expense.receiptStatus)} />
             </div>
           </div>
@@ -255,6 +259,9 @@ function DetailsCard({ expense }: { expense: ExpenseDetail }) {
             label="Rechnungsnr."
             value={<span className="font-mono">{expense.invoiceNumber}</span>}
           />
+        )}
+        {expense.invoiceDate && (
+          <Field label="Rechnungsdatum" value={formatInvoiceDate(expense.invoiceDate)} />
         )}
         <div className="md:col-span-2">
           <Field label="Beschreibung" value={expense.description} />
@@ -786,6 +793,7 @@ function EditForm({ expense }: { expense: ExpenseDetail }) {
   const [description, setDescription] = useState(expense.description);
   const [vendor, setVendor] = useState(expense.vendor ?? "");
   const [invoiceNumber, setInvoiceNumber] = useState(expense.invoiceNumber ?? "");
+  const [invoiceDate, setInvoiceDate] = useState(expense.invoiceDate ?? "");
   const [costCenterId, setCostCenterId] = useState(expense.costCenterId ?? "");
   const [submitting, setSubmitting] = useState(false);
 
@@ -795,7 +803,13 @@ function EditForm({ expense }: { expense: ExpenseDetail }) {
   // indication anything was dropped, exactly when a submitter is trying to
   // fix a rejected amount.
   const amountNum = parseGermanAmount(amount);
-  const isValid = !isNaN(amountNum) && amountNum > 0 && description.trim().length > 0;
+  // The invoice date may stay empty here: an expense from before it
+  // existed (migration 0036) can still be resubmitted. A date that is
+  // entered must be one the backend accepts.
+  const today = todayInBerlin();
+  const invoiceDateAllowed = invoiceDate === "" || isAllowedInvoiceDate(invoiceDate, today);
+  const isValid =
+    !isNaN(amountNum) && amountNum > 0 && invoiceDateAllowed && description.trim().length > 0;
 
   const handleResubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -808,6 +822,7 @@ function EditForm({ expense }: { expense: ExpenseDetail }) {
         description,
         vendorName: vendor || undefined,
         invoiceNumber: invoiceNumber || undefined,
+        invoiceDate: invoiceDate || undefined,
         costCenterId: costCenterId || undefined,
       });
       toast.success("Beleg erneut eingereicht", {
@@ -876,9 +891,26 @@ function EditForm({ expense }: { expense: ExpenseDetail }) {
         </div>
       </div>
 
-      <div>
-        <Label className="text-xs">Lieferant</Label>
-        <Input className="mt-1.5" value={vendor} onChange={(e) => setVendor(e.target.value)} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <Label className="text-xs">Rechnungsdatum</Label>
+          <Input
+            type="date"
+            className="mt-1.5"
+            max={today}
+            value={invoiceDate}
+            onChange={(e) => setInvoiceDate(e.target.value)}
+          />
+          {!invoiceDateAllowed && (
+            <p className="text-[11px] text-destructive mt-1">
+              Das Rechnungsdatum darf nicht in der Zukunft liegen.
+            </p>
+          )}
+        </div>
+        <div>
+          <Label className="text-xs">Lieferant</Label>
+          <Input className="mt-1.5" value={vendor} onChange={(e) => setVendor(e.target.value)} />
+        </div>
       </div>
 
       <div>

@@ -38,6 +38,26 @@ export interface ExpenseOverviewRow {
   /** The parent advance's description, for a line item whose advance is not
    * itself in the filtered result. */
   parentAdvanceDescription: string | null;
+  invoiceNumber: string | null;
+  /** "YYYY-MM-DD"; null for partner advances, Vorschuss line items and
+   * expenses from before d4u_backend migration 0036. */
+  invoiceDate: string | null;
+  paidAt: string | null;
+  /** Storage path of the receipt (expenses.document_ref). */
+  documentRef: string | null;
+  /** What Accounting entered when marking it paid; null before that, and
+   * for anyone RLS doesn't let read expense_accounting_details. */
+  accounting: ExpenseAccountingSummary | null;
+}
+
+export interface ExpenseAccountingSummary {
+  bookingKey: string | null;
+  vatRate: number | null;
+  netAmount: number | null;
+  kskLiable: boolean;
+  supplierVatId: string | null;
+  supplierAddress: string | null;
+  supplierBankName: string | null;
 }
 
 export interface OverviewItem {
