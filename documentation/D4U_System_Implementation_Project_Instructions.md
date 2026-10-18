@@ -10,9 +10,9 @@ The result is that the project is now substantially clearer than the older Proje
 
 ---
 
-## 0. Architecture Revision Notice (confirmed for development 5 Sep 2026; written confirmation still open)
+## 0. Architecture Revision Notice (confirmed 5 Sep 2026; final since 18 Oct 2026)
 
-**Status (updated 13 Oct 2026):** D4U confirmed on 5 Sep 2026 to proceed with the custom backend (§2C). That was a go-ahead for development; D4U's written confirmation is still open (§20, BLOCKER). With RocketChat cancelled (§2G), the optional notification-only n8n instance described below has nothing left to do: e-mails are sent from the backend. The text below is kept as the original proposal.
+**Status (updated 18 Oct 2026):** the custom backend replaces n8n. D4U confirmed it on 5 Sep 2026 (§2C), and on 18 Oct 2026 Michael closed it as final (§2H): no further confirmation is needed, and it isn't to be raised again. With RocketChat cancelled (§2G), the optional notification-only n8n instance described below has nothing left to do: e-mails are sent from the backend. The text below is kept as the original proposal.
 
 Technical Specification v2 names n8n as the workflow/business-logic layer sitting between the frontend and Supabase, handling validation, routing, and RPC invocation. That remains the _confirmed_ architecture until David signs off on a change.
 
@@ -47,7 +47,7 @@ The finished Phase 1 system should replace the current Flowwer/email/direct-mess
 | Transactional financial logic | PostgreSQL RPC functions                                         | unchanged                                                                                                   |
 | Notifications                 | ~~RocketChat, with email fallback where required~~               | **E-mail only, sent from the backend (§2G, 13 Oct 2026). RocketChat cancelled.**                            |
 | Dashboard                     | Recharts inside the application                                  | unchanged                                                                                                   |
-| Advanced reporting            | Metabase is currently contradictory — decision required; see §15 | unchanged                                                                                                   |
+| Advanced reporting            | ~~Metabase is currently contradictory — decision required; see §15~~ | **No Metabase (retired in writing, §2H, 18 Oct 2026). Reporting stays in the app.**                     |
 | Infrastructure                | Hetzner VPS for n8n and potentially Metabase                     | Hetzner VPS only if a minimal notification-only n8n is retained; otherwise not required for the core system |
 | Currency                      | EUR only                                                         | unchanged                                                                                                   |
 | Accounting integration        | Manual bridge into Monkey Office; no API integration in Phase 1  | unchanged                                                                                                   |
@@ -191,7 +191,7 @@ This section closes several items that were still open in §20 as of the last ed
 
 **Source-document gap, flag before trusting anything below at face value:** `d4u_backend/CONTRIBUTING.md`, `d4u_webapp/CONTRIBUTING.md`, and migration `0009_approval_limit_and_routing_model.sql` all cite `d4u_backend/documentation/approval_routing.md` as the primary source for this rewrite, marking it 🟡 "implementer decision, not yet confirmed by the client in writing." That file does not exist anywhere in either repo as of this writing. Either the file was never committed, or it was deleted without updating the three places that still point to it. This needs a fix (recreate it from the two CONTRIBUTING.md files' content, or repoint the citations) before treating the 🟡 status as anything other than "still not confirmed by David in writing" — the missing file doesn't change that status, but it does mean there's currently no single authoritative document for this rewrite, which is exactly the kind of drift §20's logging convention exists to prevent.
 
-### Approval routing rewrite (confirmed by D4U, recorded 13 Oct 2026, not yet in writing)
+### Approval routing rewrite (confirmed by D4U 13 Oct 2026; final since 18 Oct 2026, §2H)
 
 **Confirmed 13 Oct 2026:** the per-submitter limit (€1,000 per person), Accounting as the final approver with CEO review only above the limit, the CEO's own expenses going straight to Accounting, Accounting's self-approval with the log flag as the only safeguard, and Finance Manager approves nothing and their own expenses take the normal route (what they can see is §2F). Also confirmed: Umwidmung is proposed only by Project Manager, Finance Manager or CEO, Accounting only approves or rejects, and there's no lighter process for a same-group Umwidmung. All of it goes into the same written follow-up as §2G. No editing before approval is kept as the rule until further notice (Michael, 13 Oct 2026); D4U hasn't confirmed it, so it can change if D4U asks for an edit option. Undo of an approval by Accounting or CEO was confirmed on 13 Oct 2026 too.
 
@@ -227,7 +227,7 @@ There is no Excel-row-to-receipt-filename matching step, no "flag missing files"
 - **Project Manager → project assignment** (§20 "Newly identified structural gap"): confirmed 3 Sep 2026, `projects.lead_user_id` is authoritative, not informational — a project always has exactly one lead, permanently. No `project_members` table was added or is needed. `POST /api/expenses` enforces this for `project_manager` submissions; RLS scopes a PM to their own submissions plus expenses on projects they lead.
 - **Cost center in multiple groups within one project** (§4.3, §20): confirmed no — enforced via the live `cost_center_group_members_one_group_per_project` constraint, no code change pending.
 - **Unused Vorschuss balance in reporting**: already closed in §2B; unaffected by the Vorschuss redesign above beyond the fact that `reconciled_amount` is now written by the redesigned `advance_reconcile` call rather than the old staging pipeline.
-- **Custom backend vs. n8n/Metabase** (§0, §20 BLOCKER): confirmed by the client — proceed with the custom backend, for now. This is an engineering-unblock; the written confirmation is a separate open item below.
+- **Custom backend vs. n8n/Metabase** (§0): confirmed by the client — proceed with the custom backend. Final since 18 Oct 2026 (§2H); Metabase is retired.
 
 ### New open items surfaced in this window (not previously in §20)
 
@@ -246,7 +246,9 @@ There is no Excel-row-to-receipt-filename matching step, no "flag missing files"
 
 ---
 
-## 2E. Implementer decisions from the 12 Oct 2026 money-integrity fixes (🟡 pending D4U's written confirmation)
+## 2E. Implementer decisions from the 12 Oct 2026 money-integrity fixes (answered 18 Oct 2026, §2H)
+
+**Update 18 Oct 2026 (§2H):** D4U confirmed in writing that amounts are never negative, so 0031's rule stands. D4U answered the Umwidmung question with no: invoices from a Vorschuss must be reassignable, so 0029's rule is a stopgap until that's designed.
 
 **Status: built and live (d4u_backend migrations 0029–0031), decided on the implementer side, not yet confirmed by D4U in writing.** Each migration has to be applied together with the backend build that matches it.
 
@@ -268,7 +270,9 @@ Engineering changes in the same set, with no business-rule change (for §9's RPC
 
 ## 2F. Finance Manager sees every project and submits on any project (decided 13 Oct 2026)
 
-**Source:** D4U, via Michael after a call with David on 13 Oct 2026. **Not yet in writing**; put it into the same written follow-up as §2G.
+**Source:** D4U, via Michael after a call with David on 13 Oct 2026.
+
+**Update 18 Oct 2026 (§2H):** D4U's e-mail confirms in writing that a Finance Manager sees every project ("should be able to see the project summaries as well"). It doesn't say whether a Finance Manager may **submit** on every project. Michael's decision: leave it as built (submits on any project) until D4U says otherwise. Not an open item to chase; if D4U wants it narrowed, restore the project-lead check for `finance_manager` on submission only, in a new migration and in `PROJECT_SCOPED_ROLES`, and keep the organisation-wide reads.
 
 **Decision:** a Finance Manager sees all projects and may submit an expense on any project. Otherwise they have a Project Manager's permissions: they approve nothing (§2C), their own expenses take the normal approval route, and they may propose an Umwidmung (§2A). "Finanzleitung" stays a separate role, because its scope now differs from a Projektleitung's, so the "merge the two roles?" question is closed.
 
@@ -289,7 +293,7 @@ Regression test: `d4u_backend/scripts/test-project-scoped-reads.sh` (a Finance M
 
 ## 2G. Confirmed by D4U: e-mail-only notifications, and no approval step for Vorschüsse (13 Oct 2026)
 
-**Source:** D4U, stated on a call with Michael on 13 Oct 2026. **Not yet in writing.** Put both points into the same written follow-up as the other open confirmations (§20), so they're on record in writing.
+**Source:** D4U, stated on a call with Michael on 13 Oct 2026. Confirmed in writing in D4U's e-mail of 18 Oct 2026 (§2H).
 
 ### Notifications: RocketChat is cancelled, e-mail only
 
@@ -326,6 +330,66 @@ Regression test: `d4u_backend/scripts/test-project-scoped-reads.sh` (a Finance M
 **Related engineering fixes, same day (no business-rule change; `d4u_backend` migration 0033 and two backend routes):**
 - A Project Manager, and now a Finance Manager, could read only the names of people who *submitted* on their projects. Every step Accounting or the CEO took on their expenses (approval, send-back, payment, undo, Umwidmung decision) therefore showed as "System" in Verlauf. 0033 lets them read the name of anyone who appears in the approval history of their own expenses, and nothing beyond that.
 - `GET /api/expenses/:id/permitted-actions` and `GET /api/expenses/:id/reassign/proposal` answered any logged-in user for any expense id, because they read past RLS. Both now answer only for an expense the caller may see, and 404 otherwise.
+
+---
+
+## 2H. D4U's written answers to the 13 Oct 2026 follow-up e-mail (logged 18 Oct 2026)
+
+**Source:** David's e-mail reply to Michael's follow-up e-mail of 13 Oct 2026. An e-mail counts as Textform (contract §7), so the points below are now confirmed in writing. Four answers add work that isn't built and goes beyond the signed contract; those need a written change request before they're built as final.
+
+### Confirmed in writing, no implementation change
+
+- **Finance Manager (§2F).** "The finance manager should be able to see the project summaries as well." Matches migration 0035. The e-mail confirms what a Finance Manager sees, not whether they submit on every project; that stays as built for now (see §2F's 18 Oct update).
+- **Metabase is retired.** Closes §15's Metabase conflict. Reporting stays in the app (Recharts, SQL queries).
+- **Budgets can be overrun.** Kostenstellen and projects can go over budget. Matches §5: a soft warning, no hard block.
+- **No approval step for Vorschüsse (§2D, §2G).**
+- **Notifications by e-mail only (§2G).**
+- **Microsoft SSO moves to the very end of the implementation (§14).** It still needs D4U's two decisions and the app registration, but nothing before launch waits on it.
+
+### Confirmed in writing, closes a 🟡 implementer decision
+
+- **No negative amounts (§2E, migration 0031).** `expenses.amount > 0` stays a database rule. A changed amount is handled by a final invoice with the final amount, or by editing the original expense (see item 1 below).
+
+### New work requested (not built; change request done 18 Oct 2026)
+
+**1. Correcting an expense, and a bookkeeping note.** D4U: "There will either be a final invoice with the final amount or the original expense will be edited. There needs to be a description field for each Expense letting you detail this proceeding. Bookkeeping would then write what happened and link payment references to it (just in the description)."
+
+- Today `expenses.description` is written by the submitter when submitting. Nobody edits an expense afterwards: corrections before approval go reject → resubmit (§2C), and nothing changes a paid expense.
+- "The original expense will be edited" conflicts with that rule. Open: who edits (Accounting only?), in which statuses (only before payment, or also after `paid`?), and which fields. Changing the amount of an approved or paid expense moves Obligo or Ist, so it needs a new RPC (a seventh). An increase above the submitter's `approval_limit` raises the question of a new approval.
+- Proposal to put to D4U: leave the submitter's description unchanged and add a separate bookkeeping note that Accounting can write in any status, with every change shown in Verlauf. Settle the amount-correction rule separately.
+
+**2. "Final abgerechnet" (requested by Roman).** Mark specific Kostenstellen as final, and highlight final ones in Auswertung so overruns and savings stand out. D4U says the main question the visualization answers is which Kostenstellen overran their budget and which had savings, and thinks the current views cover that.
+
+- Model gap: a cost center has no budget of its own. Soll sits on budget lines (project × cost-center group, §5); cost centers only tag expenses. Per cost center there's an Ist but no Soll, so no overrun or saving. Open: does "Kostenstelle" here mean a budget line (works with today's model), or should single cost centers get their own budget (a data-model change)?
+- Also open: can a final line still receive expenses or Umwidmungen (block, warn, allow)? Who marks and un-marks it (Accounting? Admin?)? What if Obligo is still open when it's marked? Is the saving (Soll − Ist) shown only for final lines?
+
+**3. Umwidmung of invoices from a Vorschuss.** D4U: "It does happen that invoices consolidated from a Vorschuss might need to be reassigned." That answers §2E's question with no: "reassign only before the Excel split" (migration 0029) isn't enough.
+
+- Today, once Accounting confirms a reconciliation (`advance_reconcile`), each line is its own expense with status `paid` and its Ist booked. `reassign_expense` refuses every `paid` or `reconciled` expense (§9.4) and, since 0029, every line still in reconciliation (`awaiting_receipt`).
+- Open: when must a line be reassignable? Before Accounting confirms, after, or both? After confirmation it moves booked Ist between budget lines, which reverses §9.4's "blocked once paid". If that's allowed for Vorschuss lines, does it then apply to paid standard expenses too?
+- Either way it's a new migration changing `reassign_expense` (not an edit of 0029), plus new cases in `scripts/test-reassign-rpc.sh` and the RBAC matrix.
+
+**4. Pilot with real data from Flowwer.** D4U exported one running project (31 invoices) into the shared folder: a CSV with everything Flowwer holds, including each invoice's file name, and a subfolder with the PDFs. Roman wants a test phase with real data on a running project, then a cutover date with a period in which users enter expenses in both systems.
+
+- This is an exception to §17 and §19 ("no Flowwer history migration in Phase 1"). Record it as a one-project pilot import agreed in writing, not as the start of a general history migration.
+- **The data is real and sensitive.** Keep the CSV and PDFs out of both repos and out of any third-party tool, and import them only into the Supabase project that becomes production. That pulls several launch items forward to before the import: the DPAs (AVV) with Supabase and Vercel, the Staging/Production decision (§21 B), key rotation, deleting the test-account credentials file, and removing the smoke-test records.
+- The import is a one-off, deterministic script through the existing backend and RPCs: no direct writes to Soll/Ist/Obligo, no AI. Receipts are matched by the file name in the CSV; a missing file is flagged, not guessed.
+- Open, to answer from the CSV: Flowwer statuses → ours (paid → `paid` with accounting details? open → which approval stage?), Flowwer cost centers → ours and their groups, submitters → user accounts, the project's Soll per group, and whether imported rows get a `seeded_historical` audit marker (§17; not in the enum yet).
+- Also open: the cutover date, how long both systems run in parallel, and how their totals are compared during that time.
+
+### Closed as final by Michael, 18 Oct 2026
+
+These are settled. No further confirmation from D4U is needed, and they aren't to be raised with D4U again.
+
+- **Custom backend instead of n8n (§0).** n8n won't be delivered.
+- **Number of RPCs.** Six are built where the contract names four, and expense correction may add a seventh. D4U knows; it's part of the job.
+- **The approval model (§2C, `d4u_backend/documentation/approval_routing.md`)** as confirmed on 13 Oct 2026: €1,000 per-submitter limit, Accounting final approver, CEO review only above the limit, CEO's own expenses to Accounting, Accounting self-approval with the log flag, Finance Manager approves nothing, undo by Accounting or CEO, Umwidmung proposed by Project Manager, Finance Manager or CEO and approved by Accounting.
+- **Umwidmung destination (§9.4, migration 0028).** The proposer chooses the destination; Accounting approves or rejects exactly that proposal and can't change it. Closes the 🟡.
+
+### Still owed by Michael (from the 13 Oct e-mail)
+
+- An answer on per-user permissions: roles start at a baseline and Admin adds or removes permissions per user in Verwaltung. It's a change request: it reverses the 5 Sep 2026 "no per-user permissions" decision and possibly the 25 Aug 2026 "no sixth role" decision (an Assistant role).
+- Who is notified when the CEO approved and Accounting then sends the expense back. Under the proposed notification events the submitter is notified (→ `needs_changes`); the CEO isn't. To confirm with D4U.
 
 ---
 
@@ -507,7 +571,7 @@ It may move an expense to: another project; another budget group; potentially an
 
 Reassignment is blocked once the expense is paid or reconciled.
 
-**Updated per §2A: this RPC is no longer called directly by whichever role initiates the reassignment.** Every Umwidmung now requires Accounting approval before execution — the RPC should only ever be invoked by the backend route handling _Accounting's approval action_, never by the initiating role's request action. Concretely: the request step writes `reassignment_requested` to `approval_logs` and does not touch `expenses` or call this RPC at all; only Accounting's approval step calls `reassign_expense`, and it should be the same call site that then logs `reassignment_approved` immediately followed by `reassigned_budget_line`. CEO does not have direct execute permission on this RPC under the current confirmation (see §2A for the caveat on how that was phrased). The _request_ step may be performed by Finance Manager, Project Manager or CEO (§2C). Since 24 Sep 2026 the proposer chooses the destination and Accounting approves or rejects exactly that (migration 0028, 🟡 pending D4U's confirmation).
+**Updated per §2A: this RPC is no longer called directly by whichever role initiates the reassignment.** Every Umwidmung now requires Accounting approval before execution — the RPC should only ever be invoked by the backend route handling _Accounting's approval action_, never by the initiating role's request action. Concretely: the request step writes `reassignment_requested` to `approval_logs` and does not touch `expenses` or call this RPC at all; only Accounting's approval step calls `reassign_expense`, and it should be the same call site that then logs `reassignment_approved` immediately followed by `reassigned_budget_line`. CEO does not have direct execute permission on this RPC under the current confirmation (see §2A for the caveat on how that was phrased). The _request_ step may be performed by Finance Manager, Project Manager or CEO (§2C). Since 24 Sep 2026 the proposer chooses the destination and Accounting approves or rejects exactly that (migration 0028; final since 18 Oct 2026, §2H).
 
 A same-group, cost-center-only change is not its own variant. It goes through the same propose → approve flow (closed 5 Sep 2026, recorded in `d4u_backend/CONTRIBUTING.md`).
 
@@ -735,6 +799,8 @@ Unconfirmed: exact columns; CSV vs formatted PDF/document; branding; one project
 
 ### Metabase conflict
 
+**Resolved 18 Oct 2026 (§2H): Metabase is retired, confirmed by D4U in writing.** Reporting stays in the app. The text below is kept as history.
+
 Technical Specification v2: includes Metabase for deep reporting/export. Build Timeline: allocates a full Metabase implementation phase. David_D4U clarification: explicitly says "No Metabase; charts are built directly into the app with Recharts."
 
 Therefore Metabase should currently be treated as a scope decision, not as settled implementation.
@@ -773,6 +839,8 @@ Implement the following, adjusted for the §0 revision:
 ---
 
 ## 17. Historical data
+
+**Exception requested 18 Oct 2026 (§2H item 4):** a one-project pilot import from Flowwer (31 invoices, real data), followed by a parallel run and a cutover. Not a general history migration. Change request done 18 Oct 2026.
 
 The final specification supersedes the older idea of importing Flowwer history. Do not migrate historical Flowwer data in Phase 1.
 
@@ -822,23 +890,26 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 
 | Priority | Decision required | Where |
 | -------- | ----------------- | ----- |
-| BLOCKER  | **Written confirmation.** D4U confirms in writing that the custom backend and in-app reporting replace n8n and Metabase from the original plan. Put the 13 Oct decisions (§2C, §2F, §2G) in the same written follow-up. | §0 |
-| High     | Metabase: yes or no. Fold this into the same written confirmation. | §15 |
-| High     | Umwidmung: the proposer chooses the destination, and Accounting can only approve or reject it (24 Sep 2026, migration 0028). | §9.4 |
-| High     | Is "Umwidmung of a partner advance only before its Excel split" acceptable, or must reassignment during reconciliation work? | §2E |
-| High     | Confirm no Gutschrift/refund is ever booked as an expense, so `amount > 0` can stay a database rule. | §2E |
-| High     | Microsoft/Azure SSO: restrict to D4U's own tenant? Keep email/password as a fallback? Plus D4U registering the app in its Microsoft 365 tenant. | §14 |
+| High     | Umwidmung of Vorschuss invoices (§2H item 3): reassignable before Accounting confirms, after, or both? If after, does that also apply to paid standard expenses? | §2H, §9.4 |
+| High     | Expense correction (§2H item 1): who edits, in which statuses, which fields; re-approval if the amount rises; bookkeeping note as a separate field? | §2H |
+| High     | "Final abgerechnet" (§2H item 2): Kostenstelle = budget line, or budgets per cost center? Effect on new expenses and Umwidmungen, who marks and un-marks it, open Obligo. | §2H, §5 |
+| High     | Flowwer pilot (§2H item 4): status and cost-center mapping, user accounts, the project's Soll, `seeded_historical` marker, cutover date and parallel-run length. | §2H, §17 |
+| High     | Environments: only one Supabase project exists, labelled Production. Decide before the pilot import (§2H item 4), since real data goes in. Keep Local → Staging → Production, or decide otherwise. | §21 B, §25 |
 | High     | E-mail notifications: which provider (D4U's Microsoft 365 via Graph, or an EU transactional provider), and which events send an e-mail. | §2G, §14 |
 | High     | Exact donor-export format. | §15 |
+| Medium   | Per-user permissions (requested 13 Oct 2026): Michael owes D4U an answer; then D4U's answers on the adjustable list, an Assistant role, and the behaviour rules. | §2H |
 | Medium   | Reminder cadence. | §14 |
 | Medium   | MFA for Admin, CEO, Finance Manager and Accounting: required (§16), or covered by Microsoft SSO? | §16 |
 | Medium   | Supabase Auth/Storage production hardening (public signup, custom SMTP, redirect URLs, receipts bucket size/MIME limits). Deliberately deferred pending more usage information. | §2C |
-| Medium   | Backups (PITR) and Data Processing Agreements (Supabase, Vercel). Deferred to the very end of the production rollout by agreement, not forgotten. | §2C |
-| Medium   | Environments: only one Supabase project exists, labelled Production. Keep the Local → Staging → Production model, or decide otherwise. | §21 B, §25 |
+| Medium   | Data Processing Agreements (Supabase, Vercel): pulled forward to before the pilot import (§2H item 4). Backups (PITR) and a restore test stay at the end of the rollout. | §2C |
+| Low      | Microsoft/Azure SSO, moved to the very end (§2H): restrict to D4U's own tenant? Keep email/password as a fallback? Plus D4U registering the app in its Microsoft 365 tenant. | §14 |
 | Medium   | Re-estimated effort/timeline. | §23 |
 
 ### Closed — log
 
+- **18 Oct 2026 (§2H), done:** the change request and the questions on the new work.
+- **18 Oct 2026 (§2H), closed as final by Michael:** custom backend instead of n8n; the RPC count; the approval model; the proposer chooses the Umwidmung destination (closes 🟡 0028). A Finance Manager submitting on any project stays as built unless D4U asks otherwise.
+- **18 Oct 2026 (§2H), in writing:** Metabase retired; no negative amounts (closes 🟡 0031); budgets may be overrun; no Vorschuss approval and e-mail-only notifications now in writing; Microsoft SSO moved to the end. Answered with no: "Umwidmung of a partner advance only before its Excel split" (0029); the follow-up is a new open row above.
 - **13 Oct 2026 (§2G):** Vorschuss approval gate (§2D): no gate. Notifications: e-mail only, RocketChat cancelled.
 - **13 Oct 2026 (§2C):** undo of an approval: Accounting or CEO (the original spec had CEO only). Confirmed.
 - **13 Oct 2026 (§2C):** Umwidmung is proposed only by Project Manager, Finance Manager or CEO, and Accounting only approves or rejects; no lighter process for a same-group Umwidmung. Both confirmed.
@@ -910,7 +981,7 @@ Therefore the RLS policy set should be reviewed together with the missing projec
 
 **Phase 8 — Security and hardening.** RLS testing; role testing; idempotency; rate limiting; MFA; backup restore; receipt permissions; SPF/DKIM; automated RBAC test suite in CI (added under §0). VPN/IP restriction for n8n's admin UI only if a minimal notification-only instance is retained.
 
-**Phase 9 — Staging end-to-end acceptance.** Run real-world test scenarios with dummy/staging data. Do not test against real production finance records.
+**Phase 9 — Staging end-to-end acceptance.** Run real-world test scenarios with dummy/staging data. Do not test against real production finance records. **Since 18 Oct 2026 (§2H item 4):** D4U wants a pilot with real data on one running project. Treat that pilot as the start of production, with the production prerequisites done first, not as a test.
 
 **Phase 10 — Production deployment.** Vercel; Supabase production; reverse proxy/TLS as needed; e-mail sender with SPF/DKIM (§2G; RocketChat cancelled, so no Hetzner/n8n is needed for notifications); Metabase only if included.
 
@@ -999,4 +1070,4 @@ The cleanest single-sentence description of what is now being built is:
 
 A secure, role-based D4U finance application in which Supabase is the system of record, Next.js provides Upload/Admin/Visualization interfaces, a validated backend layer (custom API under the proposed revision, or n8n under the original spec) controls all finance workflows and notifications, PostgreSQL RPCs guarantee atomic Soll/Ist/Obligo changes, standard expenses move through approval and Accounting payment, partner advances are reconciled deterministically from Excel plus receipts into itemized booked expenses, and every financial/admin action is traceable — with no AI, no Flowwer migration, no partner portal and no full Monkey Office integration in Phase 1.
 
-The database design and core financial model are now sufficiently defined to implement. **As of 13 Oct 2026**, the policy decisions this paragraph used to list are closed: the §0 architecture revision (for development), Finance Manager routing/authority, project membership/RLS, the approval threshold, Umwidmung permissions, editing before approval, the Vorschuss approval gate (none, §2G) and the notification channel (e-mail only, §2G). What remains is §20's single "Still open" table. It's mostly written confirmations of what's already built, plus Metabase, the donor export, Microsoft SSO, the e-mail provider and events, reminder cadence, MFA, Auth/Storage hardening, backups/DPAs and the environment setup.
+The database design and core financial model are now sufficiently defined to implement. **As of 13 Oct 2026**, the policy decisions this paragraph used to list are closed: the §0 architecture revision (for development), Finance Manager routing/authority, project membership/RLS, the approval threshold, Umwidmung permissions, editing before approval, the Vorschuss approval gate (none, §2G) and the notification channel (e-mail only, §2G). **As of 18 Oct 2026** the architecture, the RPC count, the approval model and the Umwidmung destination rule are final too, and Metabase is retired (§2H). What remains is §20's single "Still open" table: the donor export, Microsoft SSO, the e-mail provider and events, reminder cadence, MFA, Auth/Storage hardening, backups/DPAs and the environment setup.

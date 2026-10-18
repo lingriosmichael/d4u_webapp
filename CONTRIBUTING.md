@@ -16,7 +16,7 @@ D4U Finance is an internal expense-management system for a nonprofit ("D4U"), Ge
 
 **Server-authorized UI, not client-hidden UI.** Which actions a user can take on an Expense Detail screen (Approve, Reject, Mark as paid, Undo approval, Reassign, Documents received, Reconcile) is determined by the backend based on role + current status. The frontend renders whatever the backend says is valid for this user on this record — it does not independently decide to show/hide/disable a button based on a client-side role check alone. If the backend didn't authorize an action, don't render it, don't just disable it.
 
-**Reassign/Umwidmung is a two-step action, not one button (confirmed 25 Aug 2026).** Don't build a single "Reassign" action that immediately executes. An authorized initiating role sees "Umwidmung vorschlagen" on an eligible expense — this only creates a request, it does not move the expense. Accounting sees a separate "Umwidmung genehmigen" action in their own pending-actions view for any expense with an open reassignment request — only this step actually executes it. CEO should not see a direct execute action for this at all under the current confirmation. "Vorschlagen" is available to Finance Manager, Project Manager and CEO (confirmed 5 Sep 2026); the proposer picks the destination and Accounting approves or rejects exactly that (🟡 24 Sep 2026, migration 0028).
+**Reassign/Umwidmung is a two-step action, not one button (confirmed 25 Aug 2026).** Don't build a single "Reassign" action that immediately executes. An authorized initiating role sees "Umwidmung vorschlagen" on an eligible expense — this only creates a request, it does not move the expense. Accounting sees a separate "Umwidmung genehmigen" action in their own pending-actions view for any expense with an open reassignment request — only this step actually executes it. CEO should not see a direct execute action for this at all under the current confirmation. "Vorschlagen" is available to Finance Manager, Project Manager and CEO (confirmed 5 Sep 2026); the proposer picks the destination and Accounting approves or rejects exactly that (24 Sep 2026, migration 0028; final since 18 Oct 2026).
 
 ## Visual identity
 
@@ -50,7 +50,7 @@ No AI prefill, no OCR — don't add "smart" receipt scanning even if it seems li
 
 Recharts-based dashboard: Soll/Ist/Obligo per project, utilization bars that shift to a warning color once `(Ist + Obligo) / Soll` crosses `warning_threshold_pct` — read this per-budget-line from the backend, don't hardcode 80%. Click-through from a project to its cost-center-group breakdown. A list (not just a count) of open advances, each linking to its detail.
 
-Do not add a "Metabase öffnen" button or any Metabase reference — whether Metabase is used at all is an open decision, not something the UI should presuppose.
+Do not add a "Metabase öffnen" button or any Metabase reference — Metabase is retired (confirmed in writing 18 Oct 2026, implementation doc §2H).
 
 **Vorschuss-Übersicht (confirmed 5 Sep 2026):** a role-gated table, visible only when `user.role` is `accounting` or `ceo` — gate it in the app layer, not RLS, since `expenses`/`partners` reads are already broader under RLS (`admin` reads every expense; every active user reads `partners`). Lists every partner advance with its original amount, the reconciled amount, and the released/unspent difference (`amount - reconciled_amount`, computed at render time — never stored). Both open (`submitted_unverified`) and reconciled advances are listed; show "—" for the reconciled/released/date columns on an advance that hasn't been reconciled yet. See `src/lib/supabase/queries/visualization.ts`'s `getAdvanceOverview()`.
 
@@ -90,7 +90,7 @@ AI/OCR receipt extraction or "smart" prefill, automatic matching of Excel lines 
 
 ## Open decisions — don't let the UI presuppose an answer
 
-Still genuinely open — if a screen would need one of these to be fully correct, use a clearly-labeled placeholder rather than a specific number or hardcoded rule: donor-export format, reminder cadence, Metabase inclusion, which events send an e-mail notification. Microsoft/Azure SSO is deferred (not declined) — see `d4u_backend/CONTRIBUTING.md`'s "Deferred, not forgotten" note for what it would actually take before building against it.
+Still genuinely open — if a screen would need one of these to be fully correct, use a clearly-labeled placeholder rather than a specific number or hardcoded rule: donor-export format, reminder cadence, which events send an e-mail notification, and the new work requested 18 Oct 2026 (implementation doc §2H: expense correction and bookkeeping note, "final abgerechnet" marking in Auswertung, Umwidmung of Vorschuss invoices). Microsoft/Azure SSO is deferred (not declined) — see `d4u_backend/CONTRIBUTING.md`'s "Deferred, not forgotten" note for what it would actually take before building against it.
 
 Resolved 13 Oct 2026 (implementation doc §2G): notifications are e-mail only — RocketChat is cancelled, and the `notify_slack_channel` setting is hidden in `admin-view.tsx` (`SUPERSEDED_SETTING_KEYS`); partner advances (Vorschüsse) have no approval step — don't add a Freigeben action for them.
 
