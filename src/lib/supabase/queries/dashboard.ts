@@ -138,7 +138,8 @@ export async function getDashboardExpenses(): Promise<DashboardExpense[]> {
  * stage an expense is currently at, accounting reviewing an unverified
  * partner advance, or accounting deciding an open Umwidmung proposal (ids
  * from getOpenReassignmentProposals — the backend decides which proposals
- * are open). */
+ * are open). A CEO's own expense at ceo_approval is not their task: the
+ * backend refuses that approval (handleApprove, decided 19 Oct 2026). */
 export function needsActionFor(
   expenses: DashboardExpense[],
   currentUser: { id: string; role: Role },
@@ -148,6 +149,7 @@ export function needsActionFor(
     if (e.status === "needs_changes" && e.submittedBy === currentUser.id) return true;
     if (currentUser.role === "accounting" && e.status === "submitted_unverified") return true;
     if (currentUser.role === "accounting" && openReassignmentExpenseIds.has(e.id)) return true;
+    if (e.status === "ceo_approval" && e.submittedBy === currentUser.id) return false;
     return isApprovalStageReviewer(e.status, currentUser.role);
   });
 }
