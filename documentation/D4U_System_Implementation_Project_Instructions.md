@@ -357,6 +357,7 @@ Regression test: `d4u_backend/scripts/test-project-scoped-reads.sh` (a Finance M
 - Today `expenses.description` is written by the submitter when submitting. Nobody edits an expense afterwards: corrections before approval go reject → resubmit (§2C), and nothing changes a paid expense.
 - "The original expense will be edited" conflicts with that rule. Open: who edits (Accounting only?), in which statuses (only before payment, or also after `paid`?), and which fields. Changing the amount of an approved or paid expense moves Obligo or Ist, so it needs a new RPC (a seventh). An increase above the submitter's `approval_limit` raises the question of a new approval.
 - Proposal to put to D4U: leave the submitter's description unchanged and add a separate bookkeeping note that Accounting can write in any status, with every change shown in Verlauf. Settle the amount-correction rule separately.
+- **Designed 19 Oct 2026, see §2I.** The open points above are answered there.
 
 **2. "Final abgerechnet" (requested by Roman).** Mark specific Kostenstellen as final, and highlight final ones in Auswertung so overruns and savings stand out. D4U says the main question the visualization answers is which Kostenstellen overran their budget and which had savings, and thinks the current views cover that.
 
@@ -390,6 +391,28 @@ These are settled. No further confirmation from D4U is needed, and they aren't t
 
 - An answer on per-user permissions: roles start at a baseline and Admin adds or removes permissions per user in Verwaltung. It's a change request: it reverses the 5 Sep 2026 "no per-user permissions" decision and possibly the 25 Aug 2026 "no sixth role" decision (an Assistant role).
 - Who is notified when the CEO approved and Accounting then sends the expense back. Under the proposed notification events the submitter is notified (→ `needs_changes`); the CEO isn't. To confirm with D4U.
+
+## 2I. Expense correction and Buchhaltungsnotiz: design decided 19 Oct 2026
+
+Answers the open points of §2H item 1. Decided by Michael on 19 Oct 2026, within the work D4U requested in writing on 18 Oct 2026. Built in two independent parts.
+
+### Part A: Buchhaltungsnotiz (built 19 Oct 2026)
+
+- **Field:** `expenses.accounting_note` (d4u_backend migration 0037), free text, at most 2,000 characters. Separate from `description`, which stays the submitter's.
+- **Who writes it:** Accounting only, in any status and for any expense type, including paid and reconciled ones (state-machine action `editAccountingNote`). Route: `PATCH /api/expenses/:id/accounting-note`; an empty note clears it.
+- **Who reads it:** everyone who can read the expense. It's a column on `expenses`, so the existing read policies already give exactly that.
+- **History:** every save logs `accounting_note_updated` in `approval_logs`, carrying the new text (empty when cleared). Verlauf is the note's version history. Saving the same text again logs nothing.
+- **Where it shows:** a "Buchhaltungsnotiz" card on Expense Detail, and a "Buchhaltungsnotiz" column in the Belege-Übersicht Excel export.
+
+### Part B: correcting a paid expense (designed; being built)
+
+- **When:** Accounting only, status `paid` only, standard expenses only. Partner advances and Vorschuss line items are excluded: correcting one line would no longer add up to the advance's reconciled total. Before payment nothing new is needed: send back → resubmit, or undo approval, already corrects an expense and keeps Obligo right.
+- **What can change:** gross amount, net amount and VAT rate (re-entered together, same consistency rule as at payment), Rechnungsnummer and Rechnungsdatum. Not the budget line or cost center (that's Umwidmung, still blocked once paid, §9.4) and not the submitter's description.
+- **Required every time:** a reason and a document (final invoice, Gutschrift, or bank statement). The original receipt stays; each correction keeps its own document.
+- **Increases are allowed, even above the submitter's `approval_limit`.** Accounting is the final approver anyway, and every correction is logged with reason and document. Going over budget is allowed (D4U, §2H) and only warned about.
+- **Accounting correcting its own expense** is allowed and flagged in Verlauf (`self_correction_flagged`), like self-approval.
+- **Money:** a new RPC, `correct_paid_expense`, moves Ist on the same budget line by new − old in one transaction with the expense update, the correction record and the history entries. It sets the new amount rather than adding to it, so a repeated request finds nothing to change and is refused; Ist can't move twice.
+- **Record:** a new table `expense_corrections`, one row per correction with the before and after values, reason, document, who and when. Readable by exactly who can read the expense; written only by the RPC.
 
 ---
 
@@ -477,9 +500,11 @@ Default warning threshold: 80%. This is explicitly a soft warning. There is no h
 
 The expense is the central operational record.
 
-Important fields: id, submitted_by, project_id, budget_line_id, cost_center_id, partner_id, reconciles_advance_id, amount, reconciled_amount, description, vendor_name, invoice_number, invoice_date, expense_type, status, receipt_status, document_ref, assigned_approver, paid_at, metadata, created_at, updated_at.
+Important fields: id, submitted_by, project_id, budget_line_id, cost_center_id, partner_id, reconciles_advance_id, amount, reconciled_amount, description, vendor_name, invoice_number, invoice_date, accounting_note, expense_type, status, receipt_status, document_ref, assigned_approver, paid_at, metadata, created_at, updated_at.
 
 **`invoice_date` (added 18 Oct 2026, d4u_backend migration 0036):** the date on the invoice, as a calendar day. Required by `POST /api/expenses` for every new standard expense and not allowed in the future (Europe/Berlin); editable on resubmit. NULL for partner advances, Vorschuss line items (`advance_split` doesn't read the partner Excel's "Date of receipt" yet) and older rows. Needed for funder reporting and the Flowwer pilot import (§2H). The Belege-Übersicht Excel export carries it, together with the invoice number, payment date, file name and Accounting's payment details (net amount, VAT rate, booking key, KSK, supplier VAT ID, address, bank).
+
+**`accounting_note` (added 19 Oct 2026, d4u_backend migration 0037):** the Buchhaltungsnotiz. Written by Accounting only, in any status; readable by everyone who can read the expense; every change logged as `accounting_note_updated`. See §2I.
 
 ### Expense types
 
@@ -526,6 +551,8 @@ Actions currently include: submitted, requested_changes, resubmitted, finance_ap
 Fields: id, expense_id, actor_id, action, from_status, to_status, note, created_at.
 
 A note is mandatory for rejection and approval reversal.
+
+**Added since:** `self_approval_flagged`, `advance_split`, `reconciliation_submitted`, `escalated_to_ceo`, `reassignment_rejected` (migrations 0017–0028), and `accounting_note_updated` (migration 0037, §2I), whose note is the Buchhaltungsnotiz's new text. The authoritative list is the latest migration that redefines `approval_logs_action_check`.
 
 ### admin_audit_log
 
@@ -687,7 +714,7 @@ Recharts dashboard containing: Soll; Ist; Obligo; budget utilisation; warning at
 
 Not a primary navigation section. Opened from a dashboard/list or notification.
 
-Depending on user and state, it shows only the valid actions: Approve; Reject; Reassign (Umwidmung); Undo approval; Mark as paid; Documents received; Reconcile.
+Depending on user and state, it shows only the valid actions: Approve; Reject; Reassign (Umwidmung); Undo approval; Mark as paid; Documents received; Reconcile; edit the Buchhaltungsnotiz (Accounting, any status, §2I). The note itself is shown to everyone who can open the expense.
 
 Invalid actions should not simply appear disabled; the current specification says they should not be shown at all. This determination is made by the backend (role + status), and the frontend renders whatever the backend authorizes — never a client-side-only permission check.
 
@@ -893,7 +920,6 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 | Priority | Decision required | Where |
 | -------- | ----------------- | ----- |
 | High     | Umwidmung of Vorschuss invoices (§2H item 3): reassignable before Accounting confirms, after, or both? If after, does that also apply to paid standard expenses? | §2H, §9.4 |
-| High     | Expense correction (§2H item 1): who edits, in which statuses, which fields; re-approval if the amount rises; bookkeeping note as a separate field? | §2H |
 | High     | "Final abgerechnet" (§2H item 2): Kostenstelle = budget line, or budgets per cost center? Effect on new expenses and Umwidmungen, who marks and un-marks it, open Obligo. | §2H, §5 |
 | High     | Flowwer pilot (§2H item 4): status and cost-center mapping, user accounts, the project's Soll, `seeded_historical` marker, cutover date and parallel-run length. | §2H, §17 |
 | High     | Environments: only one Supabase project exists, labelled Production. Decide before the pilot import (§2H item 4), since real data goes in. Keep Local → Staging → Production, or decide otherwise. | §21 B, §25 |
@@ -909,6 +935,7 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 
 ### Closed — log
 
+- **19 Oct 2026 (§2I):** expense correction and bookkeeping note designed. Buchhaltungsnotiz built (migration 0037); correcting a paid expense (Accounting, with reason and document, new RPC) being built.
 - **18 Oct 2026 (§2H), done:** the change request and the questions on the new work.
 - **18 Oct 2026 (§2H), closed as final by Michael:** custom backend instead of n8n; the RPC count; the approval model; the proposer chooses the Umwidmung destination (closes 🟡 0028). A Finance Manager submitting on any project stays as built unless D4U asks otherwise.
 - **18 Oct 2026 (§2H), in writing:** Metabase retired; no negative amounts (closes 🟡 0031); budgets may be overrun; no Vorschuss approval and e-mail-only notifications now in writing; Microsoft SSO moved to the end. Answered with no: "Umwidmung of a partner advance only before its Excel split" (0029); the follow-up is a new open row above.

@@ -45,6 +45,8 @@ export interface ExpenseOverviewRow {
   paidAt: string | null;
   /** Storage path of the receipt (expenses.document_ref). */
   documentRef: string | null;
+  /** Buchhaltungsnotiz (d4u_backend migration 0037). */
+  accountingNote: string | null;
   /** What Accounting entered when marking it paid; null before that, and
    * for anyone RLS doesn't let read expense_accounting_details. */
   accounting: ExpenseAccountingSummary | null;

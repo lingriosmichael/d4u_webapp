@@ -34,6 +34,7 @@ function overviewRow(overrides: Partial<ExpenseOverviewRow>): ExpenseOverviewRow
     invoiceDate: null,
     paidAt: null,
     documentRef: null,
+    accountingNote: null,
     accounting: null,
     ...overrides,
   };
