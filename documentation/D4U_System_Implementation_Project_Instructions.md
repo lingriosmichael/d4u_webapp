@@ -418,6 +418,36 @@ Answers the open points of §2H item 1. Decided by Michael on 19 Oct 2026, withi
 
 ---
 
+## 2J. Decisions of 19 Oct 2026: e-mail notifications, environments, four behaviour rules
+
+Logged in the §2A format. Notifications were answered by D4U (David, e-mail of 19 Oct 2026); the rest was decided by Michael on 19 Oct 2026 as the implementer.
+
+### E-mail notifications (D4U, 19 Oct 2026) — closes two §20 rows
+
+- **Asked:** which provider sends the e-mails, which events send one, and whether to send reminders.
+- **Confirmed:** D4U's own Microsoft 365, through Microsoft Graph `sendMail` (D4U's existing Mailgun account isn't used for notifications). Events 1–9 of the proposed list: waiting for CEO approval, waiting for Accounting approval, Korrektur angefordert, Freigabe zurückgezogen, Umwidmung vorgeschlagen, Umwidmung genehmigt/abgelehnt, Unterlagen eingegangen, Vorschuss-Abrechnung eingereicht, Vorschuss abgerechnet. Not "Beleg freigegeben" or "Beleg bezahlt". **No reminders in V1.**
+- **Who is told when Accounting sends back an expense the CEO approved:** only the submitter (event 3), as proposed. The CEO isn't.
+- **Changes:** §14. The person who performed an action never gets an e-mail about it; only active users who may read the expense get one. Graph doesn't send Supabase Auth's password-reset or invite e-mails: until Microsoft SSO, the Admin sets and resets passwords by hand (no custom SMTP).
+- **Still open:** D4U's Microsoft 365 admin registers the app (`Mail.Send`, limited to one sender mailbox) and hands over its credentials; the code is built against a log-only sender until then.
+
+### Environments (Michael, 19 Oct 2026) — closes §20 "Environments" and §21 Conflict B
+
+- **Decided:** one Supabase project, the current one, used as Production. The account is on the free plan and a second project isn't an option for now. Testing happens only on Local (`supabase start`); both local `.env` files point at Local before real data goes in.
+- **Consequences:** the free plan takes no automatic backups (manual `pg_dump` before the pilot import and regularly after) and pauses a project after a week without activity. Staging can be added later if the plan changes; §25 and the production cleanup checklist describe how.
+
+### Four behaviour rules (Michael, 19 Oct 2026) — found by the test-coverage work
+
+1. **An open Vorschuss** is one Accounting hasn't reconciled yet: `submitted_unverified`, `reconciliation_in_progress` or `reconciliation_submitted`. Auswertung's "Offene Vorschüsse" card used to count only the first. Built: d4u_webapp #10 (one shared status list with the Vorschüsse tab).
+2. **An Admin may not deactivate, demote or delete their own account**; another Admin can. Only Admins change users, so this makes it impossible for the last Admin to lock everyone out. Built: d4u_backend #22.
+3. **"Unterlagen eingegangen" is recorded once per Vorschuss**; a repeat is refused (409). Built: d4u_backend #23.
+4. **Nobody approves their own expense at the CEO stage**, checked when approving, not only at routing: a Project Manager whose over-limit expense waits at `ceo_approval` might be made CEO in the meantime. The expense then waits for another CEO, or Accounting sends it back and the resubmission routes as a CEO's own expense. Sending it back themselves stays allowed; Accounting's accepted, flagged self-approval is unchanged. Built: d4u_backend #24, d4u_webapp #11 (left out of that CEO's Offene Aufgaben).
+
+### Still open — asked D4U on 19 Oct 2026
+
+- **Is a receipt required for every standard expense?** Beleg-Upload says "optional, später nachreichen" (text from the original screen template, never decided), but nothing lets anyone add a receipt later, not even the correction form. Either the receipt becomes required (recommended), or it stays optional and a way to add it later is built. See §20.
+
+---
+
 ## 3. Database to implement: 12 tables (13 since migration 0038)
 
 **Added 19 Oct 2026:** `expense_corrections` (§2I), one row per correction of a paid expense.
@@ -664,7 +694,9 @@ The detailed state machine, including 90-day archival, is defined in v2.
 
 **CEO submits own expense:** submitted → accounting_approval → awaiting_payment. Finance/CEO approval is bypassed.
 
-**Accounting submits own expense:** submitted → awaiting_payment. No approval.
+**Accounting submits own expense:** ~~submitted → awaiting_payment. No approval.~~ submitted → accounting_approval → awaiting_payment, approved by Accounting itself and flagged in Verlauf (`self_approval_flagged`, §2C).
+
+**Submitter made CEO while their own expense waits at ceo_approval:** that CEO can't approve it (§2J); it waits for another CEO, or Accounting sends it back.
 
 **Finance Manager submits own expense:** ~~Not decided yet.~~ Routes on amount against their own `approval_limit`, like anyone else (§2C).
 
@@ -714,11 +746,11 @@ No AI prefill. No OCR.
 
 Manage: users; partners; projects; cost centers; cost-center groups; group membership; budget lines; settings.
 
-Every change must be auditable, regardless of whether the write path is n8n or the custom backend.
+Every change must be auditable, regardless of whether the write path is n8n or the custom backend. An Admin can't deactivate, demote or delete their own account (§2J).
 
 ### C. Visualization
 
-Recharts dashboard containing: Soll; Ist; Obligo; budget utilisation; warning at configured threshold; pending approvals / "Needs your action"; open advances; group-level totals; cost-center drill-down; relevant expense lists.
+Recharts dashboard containing: Soll; Ist; Obligo; budget utilisation; warning at configured threshold; pending approvals / "Needs your action"; open advances (every advance not yet reconciled, §2J); group-level totals; cost-center drill-down; relevant expense lists.
 
 ### D. Expense Detail
 
@@ -813,12 +845,9 @@ Regular users should have controlled read/upload permissions with no ordinary UP
 
 **Confirmed 13 Oct 2026 (§2G): notifications are sent by e-mail only. RocketChat is cancelled.** This replaces the original "RocketChat DM, with email as fallback" rule.
 
-The backend sends the e-mail itself, after a write has succeeded. A failed e-mail never affects the business outcome: if mail is down, the expense is still approved. Not built yet. Still open:
-- which provider sends the e-mails
-- which events send one
-- reminder cadence
+The backend sends the e-mail itself, after a write has succeeded. A failed e-mail never affects the business outcome: if mail is down, the expense is still approved.
 
-The database already includes a reminder_sent approval-log action, but the supplied material does not define the exact reminder cadence, so reminder timing still needs to be set.
+**Decided 19 Oct 2026 (§2J):** sent through D4U's Microsoft 365 (Microsoft Graph), for events 1–9 of the agreed list, never to the person who performed the action, and only to active users who may read the expense. No reminders in V1; the `reminder_sent` approval-log action stays unused until reminders are wanted. Being built (d4u_backend, `src/lib/notifications/`); still open: D4U's Microsoft 365 app registration.
 
 ---
 
@@ -932,11 +961,10 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 | High     | Umwidmung of Vorschuss invoices (§2H item 3): reassignable before Accounting confirms, after, or both? If after, does that also apply to paid standard expenses? | §2H, §9.4 |
 | High     | "Final abgerechnet" (§2H item 2): Kostenstelle = budget line, or budgets per cost center? Effect on new expenses and Umwidmungen, who marks and un-marks it, open Obligo. | §2H, §5 |
 | High     | Flowwer pilot (§2H item 4): status and cost-center mapping, user accounts, the project's Soll, `seeded_historical` marker, cutover date and parallel-run length. | §2H, §17 |
-| High     | Environments: only one Supabase project exists, labelled Production. Decide before the pilot import (§2H item 4), since real data goes in. Keep Local → Staging → Production, or decide otherwise. | §21 B, §25 |
-| High     | E-mail notifications: which provider (D4U's Microsoft 365 via Graph, or an EU transactional provider), and which events send an e-mail. | §2G, §14 |
+| High     | Receipt on standard expenses (asked 19 Oct 2026): required for every standard expense, or optional with a way to add it later? Today the form says optional but nothing lets anyone add it later. | §2J, §12A |
+| High     | E-mail notifications: D4U's Microsoft 365 admin registers the app (`Mail.Send`, one sender mailbox) and hands over the credentials. Provider and events are decided (§2J). | §2J, §14 |
 | High     | Exact donor-export format. | §15 |
 | Medium   | Per-user permissions (requested 13 Oct 2026): Michael owes D4U an answer; then D4U's answers on the adjustable list, an Assistant role, and the behaviour rules. | §2H |
-| Medium   | Reminder cadence. | §14 |
 | Medium   | MFA for Admin, CEO, Finance Manager and Accounting: required (§16), or covered by Microsoft SSO? | §16 |
 | Medium   | Supabase Auth/Storage production hardening (public signup, custom SMTP, redirect URLs, receipts bucket size/MIME limits). Deliberately deferred pending more usage information. | §2C |
 | Medium   | Data Processing Agreements (Supabase, Vercel): pulled forward to before the pilot import (§2H item 4). Backups (PITR) and a restore test stay at the end of the rollout. | §2C |
@@ -945,6 +973,7 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 
 ### Closed — log
 
+- **19 Oct 2026 (§2J):** e-mail notifications through D4U's Microsoft 365, events 1–9, no reminders in V1 (D4U). One Supabase project used as Production, testing on Local only (Michael; closes §21 B). Four behaviour rules (Michael): open Vorschuss = not yet reconciled; no Admin self-lockout; "Unterlagen eingegangen" once; no CEO-stage self-approval.
 - **19 Oct 2026 (§2I):** expense correction and bookkeeping note designed and built: Buchhaltungsnotiz (migration 0037); correcting a paid expense by Accounting, with reason and document (migration 0038, `correct_paid_expense`).
 - **18 Oct 2026 (§2H), done:** the change request and the questions on the new work.
 - **18 Oct 2026 (§2H), closed as final by Michael:** custom backend instead of n8n; the RPC count; the approval model; the proposer chooses the Umwidmung destination (closes 🟡 0028). A Finance Manager submitting on any project stays as built unless D4U asks otherwise.
@@ -981,7 +1010,7 @@ Updated implementation recommendation, unchanged in principle by §0: keep the s
 
 ### Conflict B — Staging vs direct Production
 
-**Still open (13 Oct 2026):** in practice only one Supabase project exists, labelled Production (§25). Whether to add Staging before go-live is in §20.
+**Resolved 19 Oct 2026 (§2J):** one Supabase project, used as Production; testing on Local only. Staging can be added later if the Supabase plan changes.
 
 Technical Specification v2 calls for Local → Staging → Production and labels the model confirmed. The Supabase setup guide later says staging is being skipped and changes are going directly into what becomes production.
 
@@ -1087,7 +1116,7 @@ Two repos are assumed, matching the two CONTRIBUTING.md files already written: a
 
 ### Environments
 
-Local → Staging → Production, per the confirmed (§21 Conflict B resolution) three-environment model. Each of Staging and Production needs its own Supabase project (separate project refs, separate service-role keys) and its own Vercel environment/deployment target — never point a Staging frontend at the Production database or vice versa, and never test against real production finance records (§18 already requires this for the acceptance-testing phase; it applies throughout development too).
+**Decided 19 Oct 2026 (§2J): Local → Production, with one Supabase project.** Testing happens only on Local (`supabase start`). Vercel Preview deployments can only use the same project, so nothing is tried out on them with throwaway data, and e-mail notifications stay off everywhere but the Production deployment. What follows describes the three-environment model, kept for when a Staging project is added: Local → Staging → Production. Each of Staging and Production needs its own Supabase project (separate project refs, separate service-role keys) and its own Vercel environment/deployment target — never point a Staging frontend at the Production database or vice versa, and never test against real production finance records (§18 already requires this for the acceptance-testing phase; it applies throughout development too).
 
 ### Migrations
 
