@@ -37,9 +37,11 @@ cp .env.example .env
 npm run dev
 ```
 
-`.env.example` already holds the Supabase project's URL and publishable
-key — both are safe to be public; Row Level Security, not key secrecy,
-protects the data. Check the three values:
+Fill in the three values in `.env`. Use your Local or Staging Supabase
+project, never Production, for development. The URL and publishable key
+are safe to be public (Row Level Security, not key secrecy, protects the
+data), but `.env.example` leaves them empty so a fresh clone doesn't
+point at Production by default.
 
 | Variable                        | What to put there                                                                                        |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------- |
