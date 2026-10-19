@@ -252,7 +252,7 @@ describe("getAdvanceOverview (Vorschuss-Übersicht)", () => {
   // Buchhaltungsnotiz in any status — so the date shifts to the last note
   // edit. The reconcile commit logs to_status "reconciled" in
   // approval_logs; that entry is when it was reconciled.
-  it.fails("shows when the advance was reconciled, not when the row last changed", async () => {
+  it("shows when the advance was reconciled, not when the row last changed", async () => {
     useTables({
       expenses: [
         {
@@ -541,7 +541,7 @@ describe("getExpenseOverview (Belege-Übersicht)", () => {
   // DISPLAY_TIME_ZONE). A Beleg submitted 00:30 Berlin time on 13 Oct is
   // shown as 13.10.2026 but left out of "von 13.10." and counted in
   // "bis 12.10." instead.
-  it.fails("reads the date range as Berlin calendar days, like the dates on screen", async () => {
+  it("reads the date range as Berlin calendar days, like the dates on screen", async () => {
     useTables({
       ...lookups,
       expenses: [expense({ id: "just-after-midnight", created_at: "2026-10-12T22:30:00Z" })],

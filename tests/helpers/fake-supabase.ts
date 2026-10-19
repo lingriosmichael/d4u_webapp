@@ -1,7 +1,7 @@
 // A small in-memory stand-in for the supabase-js query builder, for testing
 // the read-only query mappers in src/lib/supabase/queries/ without a
 // database. It supports exactly the builder calls those files use (select,
-// eq, in, gte, lte, order, single, maybeSingle, await) and applies the
+// eq, in, gte, lt, lte, order, single, maybeSingle, await) and applies the
 // filters to the fixture rows, so a test checks what the mapper does with
 // the rows a real query would return. `select` ignores its column list:
 // fixtures carry only the columns (and embedded relations) a test needs.
@@ -12,7 +12,7 @@
 export type FakeRow = Record<string, unknown>;
 
 export interface RecordedFilter {
-  operator: "eq" | "in" | "gte" | "lte";
+  operator: "eq" | "in" | "gte" | "lt" | "lte";
   column: string;
   value: unknown;
 }
@@ -32,6 +32,7 @@ interface FakeQueryBuilder extends PromiseLike<FakeResult> {
   eq(column: string, value: unknown): FakeQueryBuilder;
   in(column: string, values: unknown[]): FakeQueryBuilder;
   gte(column: string, value: string): FakeQueryBuilder;
+  lt(column: string, value: string): FakeQueryBuilder;
   lte(column: string, value: string): FakeQueryBuilder;
   order(column: string, options?: { ascending?: boolean }): FakeQueryBuilder;
   single(): Promise<FakeResult>;
@@ -74,6 +75,11 @@ export function createFakeSupabase(
       gte(column, value) {
         recorded.filters.push({ operator: "gte", column, value });
         rows = rows.filter((row) => asUtcMillis(row[column]) >= asUtcMillis(value));
+        return builder;
+      },
+      lt(column, value) {
+        recorded.filters.push({ operator: "lt", column, value });
+        rows = rows.filter((row) => asUtcMillis(row[column]) < asUtcMillis(value));
         return builder;
       },
       lte(column, value) {

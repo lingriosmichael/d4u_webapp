@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { startOfBerlinDay, startOfNextBerlinDay } from "@/lib/berlin-day";
 import {
   OPEN_ADVANCE_STATUSES,
   OPEN_EXPENSE_STATUSES,
@@ -109,7 +110,9 @@ export async function getAdvanceOverview(): Promise<AdvanceOverviewRow[]> {
   const supabase = await createClient();
   const { data: advances } = await supabase
     .from("expenses")
-    .select("id, partner_id, amount, reconciled_amount, status, updated_at")
+    .select(
+      "id, partner_id, amount, reconciled_amount, status, updated_at, approval_logs(to_status, created_at)",
+    )
     .eq("expense_type", "partner_advance")
     .order("updated_at", { ascending: false });
 
@@ -126,8 +129,23 @@ export async function getAdvanceOverview(): Promise<AdvanceOverviewRow[]> {
     amount: Number(row.amount),
     reconciledAmount: row.reconciled_amount === null ? null : Number(row.reconciled_amount),
     status: row.status as "submitted_unverified" | "reconciled",
-    reconciledAt: row.status === "reconciled" ? row.updated_at : null,
+    reconciledAt: row.status === "reconciled" ? reconciledAtOf(row) : null,
   }));
+}
+
+/** When the advance was reconciled: its "reconciled" Verlauf entry, which
+ * never changes. updated_at moves with every later write (e.g. Accounting's
+ * Buchhaltungsnotiz); it's only the fallback for an advance with no such
+ * entry. */
+function reconciledAtOf(row: {
+  updated_at: string;
+  approval_logs?: { to_status: string | null; created_at: string }[] | null;
+}): string {
+  const reconciledEntries = (row.approval_logs ?? [])
+    .filter((log) => log.to_status === "reconciled")
+    .map((log) => log.created_at)
+    .sort();
+  return reconciledEntries.at(-1) ?? row.updated_at;
 }
 
 export async function getProjectDrilldown(projectId: string): Promise<{
@@ -320,8 +338,9 @@ export async function getExpenseOverview(
 
   if (filters.costCenterId) query = query.eq("cost_center_id", filters.costCenterId);
   if (filters.projectId) query = query.eq("project_id", filters.projectId);
-  if (filters.from) query = query.gte("created_at", filters.from);
-  if (filters.to) query = query.lte("created_at", `${filters.to}T23:59:59.999`);
+  // Berlin calendar days, like the dates on screen and in the export.
+  if (filters.from) query = query.gte("created_at", startOfBerlinDay(filters.from));
+  if (filters.to) query = query.lt("created_at", startOfNextBerlinDay(filters.to));
 
   const { data, error } = await query;
   if (error) throw error;
