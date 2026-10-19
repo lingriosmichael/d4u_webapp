@@ -22,6 +22,7 @@ function expense(overrides: Partial<DashboardExpense>): DashboardExpense {
     amount: 120,
     description: "Bahnticket",
     status: "accounting_approval",
+    receiptStatus: "attached",
     createdAt: "2026-10-19T10:01:17Z",
     submittedBy: "submitter",
     submittedByName: "David Kirchner",

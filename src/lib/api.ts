@@ -26,6 +26,7 @@ export type BackendEndpoint =
   | "expenses.attachReceipt"
   | "expenses.accountingNote"
   | "expenses.correct"
+  | "expenses.addReceipt"
   | "advances.split"
   | "advances.submitForReconciliation"
   | "admin.users.upsert"
@@ -109,6 +110,8 @@ function resolveRoute(
       return { method: "PATCH", path: `/api/expenses/${expenseId}/accounting-note` };
     case "expenses.correct":
       return { method: "POST", path: `/api/expenses/${expenseId}/correct` };
+    case "expenses.addReceipt":
+      return { method: "POST", path: `/api/expenses/${expenseId}/add-receipt` };
     case "advances.split":
       return { method: "POST", path: `/api/advances/${expenseId}/split` };
     case "advances.submitForReconciliation":

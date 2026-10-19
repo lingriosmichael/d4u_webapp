@@ -33,6 +33,7 @@ const ACTION_NAMES: Array<keyof PermittedActions> = [
   "documentsReceived",
   "editAccountingNote",
   "correctPaidExpense",
+  "addReceipt",
 ];
 
 const NOTHING_PERMITTED = Object.fromEntries(ACTION_NAMES.map((name) => [name, false]));

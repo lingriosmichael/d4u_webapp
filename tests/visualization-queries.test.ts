@@ -412,6 +412,7 @@ describe("getExpenseOverview (Belege-Übersicht)", () => {
       invoice_date: "2026-10-01",
       paid_at: null,
       document_ref: "BIB-24/uuid/r.pdf",
+      receipt_status: "attached",
       accounting_note: null,
       expense_type: "standard",
       created_at: "2026-10-05T10:00:00Z",
@@ -442,6 +443,23 @@ describe("getExpenseOverview (Belege-Übersicht)", () => {
       amount: 1500.5,
       accounting: null,
       parentAdvanceDescription: null,
+    });
+  });
+
+  // "Beleg fehlt" badge (D4U, 19 Oct 2026: a receipt may be added later).
+  it("carries the receipt status, so a missing receipt can be flagged", async () => {
+    useTables({
+      ...lookups,
+      expenses: [
+        expense({ id: "with", receipt_status: "attached" }),
+        expense({ id: "without", document_ref: null, receipt_status: "missing" }),
+      ],
+    });
+    const rows = await getExpenseOverview();
+
+    expect(Object.fromEntries(rows.map((row) => [row.id, row.receiptStatus]))).toEqual({
+      with: "attached",
+      without: "missing",
     });
   });
 

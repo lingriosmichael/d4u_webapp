@@ -48,6 +48,9 @@ import {
 import { AccountingNoteCard } from "./accounting-note-card";
 import { CorrectPaidExpenseCard, CorrectionsCard } from "./correction-cards";
 import { ReceiptLink } from "@/components/receipt-link";
+import { ReceiptFileInput } from "@/components/receipt-file-input";
+import { uploadReceipt } from "@/lib/supabase/upload-receipt";
+import { AddReceiptCard } from "./add-receipt-card";
 
 type Mode = "review" | "edit" | "reconcile" | "readonly";
 
@@ -161,6 +164,9 @@ export function ExpenseDetailView({
           ) : (
             <DetailsCard expense={expense} />
           )}
+
+          {/* In edit mode the correction form has its own receipt field. */}
+          {permittedActions.addReceipt && mode !== "edit" && <AddReceiptCard expense={expense} />}
 
           {(expense.accountingNote || permittedActions.editAccountingNote) && (
             <AccountingNoteCard
@@ -334,16 +340,28 @@ function Timeline({ expense }: { expense: ExpenseDetail }) {
             <div className="text-[10px] text-muted-foreground mt-0.5">
               {log.actorName ?? "System"} · {fmtDateTime(log.at)}
             </div>
-            {log.note && (
-              <p className="text-xs text-muted-foreground mt-1.5 italic leading-relaxed whitespace-pre-line">
-                &ldquo;{log.note}&rdquo;
-              </p>
+            {log.action === "receipt_replaced" && log.note ? (
+              <div className="text-xs text-muted-foreground mt-1.5">
+                Vorheriger Beleg:{" "}
+                <ReceiptLink documentRef={log.note} label={fileNameOf(log.note)} />
+              </div>
+            ) : (
+              log.note && (
+                <p className="text-xs text-muted-foreground mt-1.5 italic leading-relaxed whitespace-pre-line">
+                  &ldquo;{log.note}&rdquo;
+                </p>
+              )
             )}
           </li>
         );
       })}
     </ol>
   );
+}
+
+/** "<project code>/<uuid>/<file name>" → "<file name>". */
+function fileNameOf(documentRef: string): string {
+  return documentRef.split("/").pop() || documentRef;
 }
 
 /** A cleared Buchhaltungsnotiz logs accounting_note_updated with no note. */
@@ -353,7 +371,7 @@ function logLabel(log: ExpenseDetail["logs"][number]): string {
 }
 
 // Labels for the live approval_logs_action_check values (current list: the
-// latest d4u_backend migration that redefines it, 0038 as of this writing) —
+// latest d4u_backend migration that redefines it, 0039 as of this writing) —
 // not mock-data.ts's ApprovalAction fixture, whose vocabulary ("approved",
 // "rejected", "reconciled", "undo_approval", "reassigned") the real
 // constraint rejects. Unknown values fall through to the raw action name.
@@ -405,6 +423,10 @@ function actionLabel(a: string): string {
       return "Beleg korrigiert";
     case "self_correction_flagged":
       return "Selbstkorrektur durch die Buchhaltung vermerkt";
+    case "receipt_added":
+      return "Beleg nachgereicht";
+    case "receipt_replaced":
+      return "Beleg ersetzt";
     default:
       return a;
   }
@@ -830,6 +852,9 @@ function EditForm({ expense }: { expense: ExpenseDetail }) {
   const [invoiceNumber, setInvoiceNumber] = useState(expense.invoiceNumber ?? "");
   const [invoiceDate, setInvoiceDate] = useState(expense.invoiceDate ?? "");
   const [costCenterId, setCostCenterId] = useState(expense.costCenterId ?? "");
+  // Optional: replaces the receipt, or adds the missing one (d4u_backend
+  // resubmit; the previous file stays linked in Verlauf).
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Same bound StandardExpenseForm's upload form enforces before enabling
@@ -851,8 +876,12 @@ function EditForm({ expense }: { expense: ExpenseDetail }) {
     if (!isValid) return;
     setSubmitting(true);
     try {
+      const documentRef = receiptFile
+        ? await uploadReceipt(receiptFile, expense.projectCode ?? "unbekannt")
+        : undefined;
       await callBackend("expenses.resubmit", {
         expenseId: expense.id,
+        documentRef,
         amount: amountNum,
         description,
         vendorName: vendor || undefined,
@@ -955,6 +984,21 @@ function EditForm({ expense }: { expense: ExpenseDetail }) {
           rows={3}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <Label className="text-xs">
+          {expense.documentRef ? "Beleg ersetzen (optional)" : "Beleg hinzufügen (optional)"}
+        </Label>
+        <ReceiptFileInput
+          file={receiptFile}
+          onChange={setReceiptFile}
+          placeholder={
+            expense.documentRef
+              ? "Neue Datei auswählen; ohne Auswahl bleibt der bisherige Beleg"
+              : "Datei auswählen"
+          }
         />
       </div>
 
