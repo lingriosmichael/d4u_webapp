@@ -442,9 +442,23 @@ Logged in the §2A format. Notifications were answered by D4U (David, e-mail of 
 3. **"Unterlagen eingegangen" is recorded once per Vorschuss**; a repeat is refused (409). Built: d4u_backend #23.
 4. **Nobody approves their own expense at the CEO stage**, checked when approving, not only at routing: a Project Manager whose over-limit expense waits at `ceo_approval` might be made CEO in the meantime. The expense then waits for another CEO, or Accounting sends it back and the resubmission routes as a CEO's own expense. Sending it back themselves stays allowed; Accounting's accepted, flagged self-approval is unchanged. Built: d4u_backend #24, d4u_webapp #11 (left out of that CEO's Offene Aufgaben).
 
-### Still open — asked D4U on 19 Oct 2026
+### ~~Still open~~ Answered the same day — asked D4U on 19 Oct 2026
 
-- **Is a receipt required for every standard expense?** Beleg-Upload says "optional, später nachreichen" (text from the original screen template, never decided), but nothing lets anyone add a receipt later, not even the correction form. Either the receipt becomes required (recommended), or it stays optional and a way to add it later is built. See §20.
+- **Is a receipt required for every standard expense?** No: it stays optional and can be added at any point. Designed and built in §2K.
+
+---
+
+## 2K. Receipts added later, replaced, and checked (D4U, 19 Oct 2026)
+
+- **Asked:** whether a standard expense's receipt is required, since Beleg-Upload said "optional, später nachreichen" but nothing let anyone add one later, not even the correction form (reported by the tester on 19 Oct 2026).
+- **Confirmed (David, 19 Oct 2026):** optional, and addable "at any point in the process no matter in which step we are currently". Example: an online order whose invoice only arrives with the delivery, while it helps to know the money was spent. Kept separate from the Vorschüsse flow.
+- **Designed by Michael, 19 Oct 2026:**
+  - **Beleg nachreichen:** standard expenses only (not partner advances or Vorschuss line items), in any status including paid, by the submitter or Accounting, and only while the receipt is missing: it never overwrites one. Nothing but the receipt changes. State-machine action `addReceipt`, route `POST /api/expenses/:id/add-receipt`.
+  - **Beleg ersetzen:** a wrong file is replaced only on resubmission after "Korrektur anfordern" (an optional file field in the correction form). After payment, "Beleg korrigieren" (§2I) records its own document and the original receipt stays.
+  - **Verlauf:** `receipt_added` ("Beleg nachgereicht") and `receipt_replaced` ("Beleg ersetzt"), the latter keeping the previous file's storage path, linked in Verlauf. d4u_backend migration 0039.
+  - **"Beleg fehlt" badge** on Übersicht's task cards and in the Belege-Übersicht.
+- **Found and fixed with it (security):** the browser uploads files into the receipts bucket itself and sends the backend the path; the backend reads and links files with the service role, which bypasses the bucket's read policy. Only the correction route checked the path. Now every route that accepts one (Beleg-Upload, Beleg nachreichen, Beleg ersetzen, the Vorschuss Excel split, the Vorschuss line receipt, Beleg korrigieren) accepts only an upload into the expense's own project folder (`<project code>/<uuid>/<file>`) that exists (`src/lib/receipt-document.ts`). Beleg-Upload no longer takes the receipt status from the request: a checked file is "attached", none is "missing", a partner advance "not_required".
+- **Built as:** d4u_backend and d4u_webapp branch `fix/receipt-handling`, one PR each.
 
 ---
 
@@ -578,7 +592,7 @@ Monkey Office booking number is deliberately not stored because it does not exis
 
 Expense lifecycle history.
 
-Actions currently include: submitted, requested_changes, resubmitted, finance_approved, ceo_approved, accounting_approved, budget_incremented, documents_received, advance_reconciled, **reassignment_requested, reassignment_approved**, reassigned_budget_line, marked_paid, reminder_sent, approval_reversed.
+Actions currently include: submitted, requested_changes, resubmitted, finance_approved, ceo_approved, accounting_approved, budget_incremented, documents_received, advance_reconciled, **reassignment_requested, reassignment_approved**, reassigned_budget_line, marked_paid, reminder_sent, approval_reversed. Later additions are in the migration that last redefines `approval_logs_action_check` (0039 as of 19 Oct 2026: also `receipt_added`, `receipt_replaced`).
 
 **Updated per §2A:** `reassigned_budget_line` alone is no longer sufficient to describe an Umwidmung, now that every reassignment requires a separate Accounting approval step before it executes. Split into two distinct actions: `reassignment_requested` (logged when the initiating role submits the request — from_status/to_status stay at the expense's current status, since nothing has moved yet) and `reassignment_approved` (logged by Accounting; this is the action that should immediately precede the actual `reassigned_budget_line` entry once `reassign_expense` executes). This keeps the request and the execution independently auditable, which matters given Accounting approval is now a mandatory gate rather than an assumed formality.
 
@@ -736,7 +750,7 @@ The current application should have three navigable areas, plus a fourth context
 
 ### A. Upload
 
-Used for expense submission. Standard expense form should support at least: project; budget line / group; valid cost center belonging to that group; amount; invoice date (Rechnungsdatum, required since 18 Oct 2026); description; vendor; invoice number where applicable; receipt/document; expense type.
+Used for expense submission. Standard expense form should support at least: project; budget line / group; valid cost center belonging to that group; amount; invoice date (Rechnungsdatum, required since 18 Oct 2026); description; vendor; invoice number where applicable; receipt/document (optional, can be added later, §2K); expense type.
 
 For partner advance: partner becomes relevant; invoice/accounting details are not required at initial payout.
 
@@ -756,7 +770,7 @@ Recharts dashboard containing: Soll; Ist; Obligo; budget utilisation; warning at
 
 Not a primary navigation section. Opened from a dashboard/list or notification.
 
-Depending on user and state, it shows only the valid actions: Approve; Reject; Reassign (Umwidmung); Undo approval; Mark as paid; Documents received; Reconcile; edit the Buchhaltungsnotiz (Accounting, any status, §2I); correct a paid expense (Accounting, §2I). The note itself is shown to everyone who can open the expense.
+Depending on user and state, it shows only the valid actions: Approve; Reject; Reassign (Umwidmung); Undo approval; Mark as paid; Documents received; Reconcile; edit the Buchhaltungsnotiz (Accounting, any status, §2I); correct a paid expense (Accounting, §2I); add a missing receipt (submitter or Accounting, any status, §2K). The note itself is shown to everyone who can open the expense.
 
 Invalid actions should not simply appear disabled; the current specification says they should not be shown at all. This determination is made by the backend (role + status), and the frontend renders whatever the backend authorizes — never a client-side-only permission check.
 
@@ -961,7 +975,6 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 | High     | Umwidmung of Vorschuss invoices (§2H item 3): reassignable before Accounting confirms, after, or both? If after, does that also apply to paid standard expenses? | §2H, §9.4 |
 | High     | "Final abgerechnet" (§2H item 2): Kostenstelle = budget line, or budgets per cost center? Effect on new expenses and Umwidmungen, who marks and un-marks it, open Obligo. | §2H, §5 |
 | High     | Flowwer pilot (§2H item 4): status and cost-center mapping, user accounts, the project's Soll, `seeded_historical` marker, cutover date and parallel-run length. | §2H, §17 |
-| High     | Receipt on standard expenses (asked 19 Oct 2026): required for every standard expense, or optional with a way to add it later? Today the form says optional but nothing lets anyone add it later. | §2J, §12A |
 | High     | E-mail notifications: D4U's Microsoft 365 admin registers the app (`Mail.Send`, one sender mailbox) and hands over the credentials. Provider and events are decided (§2J). | §2J, §14 |
 | High     | Exact donor-export format. | §15 |
 | Medium   | Per-user permissions (requested 13 Oct 2026): Michael owes D4U an answer; then D4U's answers on the adjustable list, an Assistant role, and the behaviour rules. | §2H |
@@ -973,6 +986,7 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 
 ### Closed — log
 
+- **19 Oct 2026 (§2K):** receipt on a standard expense stays optional and can be added at any point (D4U); Beleg nachreichen, Beleg ersetzen, "Beleg fehlt" badge, and every uploaded path checked against the expense's project folder.
 - **19 Oct 2026 (§2J):** e-mail notifications through D4U's Microsoft 365, events 1–9, no reminders in V1 (D4U). One Supabase project used as Production, testing on Local only (Michael; closes §21 B). Four behaviour rules (Michael): open Vorschuss = not yet reconciled; no Admin self-lockout; "Unterlagen eingegangen" once; no CEO-stage self-approval.
 - **19 Oct 2026 (§2I):** expense correction and bookkeeping note designed and built: Buchhaltungsnotiz (migration 0037); correcting a paid expense by Accounting, with reason and document (migration 0038, `correct_paid_expense`).
 - **18 Oct 2026 (§2H), done:** the change request and the questions on the new work.
