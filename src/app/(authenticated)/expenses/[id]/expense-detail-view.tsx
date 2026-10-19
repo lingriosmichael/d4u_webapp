@@ -46,6 +46,8 @@ import {
   UmwidmungProposeCard,
 } from "./umwidmung-cards";
 import { AccountingNoteCard } from "./accounting-note-card";
+import { CorrectPaidExpenseCard, CorrectionsCard } from "./correction-cards";
+import { ReceiptLink } from "@/components/receipt-link";
 
 type Mode = "review" | "edit" | "reconcile" | "readonly";
 
@@ -168,6 +170,9 @@ export function ExpenseDetailView({
             />
           )}
 
+          {expense.corrections.length > 0 && <CorrectionsCard corrections={expense.corrections} />}
+          {permittedActions.correctPaidExpense && <CorrectPaidExpenseCard expense={expense} />}
+
           {mode === "review" && (
             <ReviewActions expense={expense} permittedActions={permittedActions} />
           )}
@@ -214,7 +219,16 @@ export function ExpenseDetailView({
               {expense.invoiceDate && (
                 <MetaRow label="Rechnungsdatum" value={formatInvoiceDate(expense.invoiceDate)} />
               )}
-              <MetaRow label="Beleg" value={receiptLabel(expense.receiptStatus)} />
+              <MetaRow
+                label="Beleg"
+                value={
+                  expense.documentRef ? (
+                    <ReceiptLink documentRef={expense.documentRef} label="Ansehen" />
+                  ) : (
+                    receiptLabel(expense.receiptStatus)
+                  )
+                }
+              />
             </div>
           </div>
         </aside>
@@ -339,7 +353,7 @@ function logLabel(log: ExpenseDetail["logs"][number]): string {
 }
 
 // Labels for the live approval_logs_action_check values (current list: the
-// latest d4u_backend migration that redefines it, 0037 as of this writing) —
+// latest d4u_backend migration that redefines it, 0038 as of this writing) —
 // not mock-data.ts's ApprovalAction fixture, whose vocabulary ("approved",
 // "rejected", "reconciled", "undo_approval", "reassigned") the real
 // constraint rejects. Unknown values fall through to the raw action name.
@@ -387,6 +401,10 @@ function actionLabel(a: string): string {
       return "Budget reserviert";
     case "accounting_note_updated":
       return "Buchhaltungsnotiz geändert";
+    case "expense_corrected":
+      return "Beleg korrigiert";
+    case "self_correction_flagged":
+      return "Selbstkorrektur durch die Buchhaltung vermerkt";
     default:
       return a;
   }

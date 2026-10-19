@@ -31,6 +31,26 @@ export interface ReconciledLine {
   grossAmount: number;
 }
 
+/** One correction of a paid expense (d4u_backend migration 0038,
+ * expense_corrections): what changed, why, and its document. */
+export interface ExpenseCorrection {
+  id: string;
+  correctedAt: string;
+  correctedByName: string | null;
+  reason: string;
+  documentRef: string;
+  oldAmount: number;
+  newAmount: number;
+  oldNetAmount: number | null;
+  newNetAmount: number;
+  oldVatRate: number | null;
+  newVatRate: number;
+  oldInvoiceNumber: string | null;
+  newInvoiceNumber: string | null;
+  oldInvoiceDate: string | null;
+  newInvoiceDate: string | null;
+}
+
 export interface ExpenseDetail {
   id: string;
   status: ExpenseStatus;
@@ -68,6 +88,15 @@ export interface ExpenseDetail {
    * validates (cost_center_group_members). */
   groupCostCenters: Array<{ id: string; code: string; name: string }>;
   reconciledLines: ReconciledLine[];
+  /** The budget line this expense books on, for the correction form's
+   * preview of how Ist changes. Display only: the RPC moves the money. */
+  budgetLine: { allocated: number; consumed: number; obligo: number } | null;
+  /** Net amount and VAT rate as Accounting entered them when marking it
+   * paid; null before that, and for everyone RLS doesn't let read
+   * expense_accounting_details (only Accounting and above). */
+  paymentDetails: { netAmount: number | null; vatRate: number | null } | null;
+  /** Corrections after payment, oldest first. */
+  corrections: ExpenseCorrection[];
 }
 
 export async function getExpenseDetail(id: string): Promise<ExpenseDetail | null> {
@@ -84,7 +113,7 @@ export async function getExpenseDetail(id: string): Promise<ExpenseDetail | null
   // resolve group_id through it before anything that needs the group.
   const { data: budgetLine } = await supabase
     .from("budget_lines")
-    .select("group_id")
+    .select("group_id, allocated_amount, consumed_amount, obligo_amount")
     .eq("id", expense.budget_line_id)
     .maybeSingle();
 
@@ -97,6 +126,8 @@ export async function getExpenseDetail(id: string): Promise<ExpenseDetail | null
     groupCostCenters,
     logs,
     reconciledChildren,
+    paymentDetails,
+    corrections,
   ] = await Promise.all([
     supabase.from("projects").select("id, code, name").eq("id", expense.project_id).maybeSingle(),
     budgetLine
@@ -124,6 +155,12 @@ export async function getExpenseDetail(id: string): Promise<ExpenseDetail | null
     getGroupCostCenters(expense.budget_line_id),
     getLogs(id),
     expense.status === "reconciled" ? getReconciledLines(id) : Promise.resolve([]),
+    supabase
+      .from("expense_accounting_details")
+      .select("net_amount, vat_rate")
+      .eq("expense_id", id)
+      .maybeSingle(),
+    getCorrections(id),
   ]);
 
   return {
@@ -158,7 +195,64 @@ export async function getExpenseDetail(id: string): Promise<ExpenseDetail | null
     logs,
     groupCostCenters,
     reconciledLines: reconciledChildren,
+    budgetLine: budgetLine
+      ? {
+          allocated: Number(budgetLine.allocated_amount),
+          consumed: Number(budgetLine.consumed_amount),
+          obligo: Number(budgetLine.obligo_amount),
+        }
+      : null,
+    paymentDetails: paymentDetails.data
+      ? {
+          netAmount: numberOrNull(paymentDetails.data.net_amount),
+          vatRate: numberOrNull(paymentDetails.data.vat_rate),
+        }
+      : null,
+    corrections,
   };
+}
+
+function numberOrNull(value: unknown): number | null {
+  return value == null ? null : Number(value);
+}
+
+/** "First Last" for each user id the reader may see (RLS); missing ids
+ * are simply absent from the map. */
+async function getUserNames(ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const supabase = await createClient();
+  const { data } = await supabase.from("users").select("id, first_name, last_name").in("id", ids);
+  return new Map((data ?? []).map((u) => [u.id, `${u.first_name} ${u.last_name}`.trim()]));
+}
+
+async function getCorrections(expenseId: string): Promise<ExpenseCorrection[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("expense_corrections")
+    .select("*")
+    .eq("expense_id", expenseId)
+    .order("corrected_at", { ascending: true });
+
+  const rows = data ?? [];
+  const nameById = await getUserNames([...new Set(rows.map((r) => r.corrected_by as string))]);
+
+  return rows.map((r) => ({
+    id: r.id,
+    correctedAt: r.corrected_at,
+    correctedByName: nameById.get(r.corrected_by) ?? null,
+    reason: r.reason,
+    documentRef: r.document_ref,
+    oldAmount: Number(r.old_amount),
+    newAmount: Number(r.new_amount),
+    oldNetAmount: numberOrNull(r.old_net_amount),
+    newNetAmount: Number(r.new_net_amount),
+    oldVatRate: numberOrNull(r.old_vat_rate),
+    newVatRate: Number(r.new_vat_rate),
+    oldInvoiceNumber: r.old_invoice_number,
+    newInvoiceNumber: r.new_invoice_number,
+    oldInvoiceDate: r.old_invoice_date,
+    newInvoiceDate: r.new_invoice_date,
+  }));
 }
 
 async function getGroupCostCenters(budgetLineId: string) {
@@ -197,13 +291,7 @@ async function getLogs(expenseId: string): Promise<ExpenseLogEntry[]> {
     .order("created_at", { ascending: true });
 
   const rows = data ?? [];
-  const actorIds = [...new Set(rows.map((r) => r.actor_id))];
-  const { data: actors } = actorIds.length
-    ? await supabase.from("users").select("id, first_name, last_name").in("id", actorIds)
-    : { data: [] as { id: string; first_name: string; last_name: string }[] };
-  const nameById = new Map(
-    (actors ?? []).map((a) => [a.id, `${a.first_name} ${a.last_name}`.trim()]),
-  );
+  const nameById = await getUserNames([...new Set(rows.map((r) => r.actor_id))]);
 
   return rows.map((r) => ({
     id: r.id,
