@@ -19,6 +19,7 @@ export interface PermittedActions {
   reassignReject: boolean;
   documentsReceived: boolean;
   editAccountingNote: boolean;
+  correctPaidExpense: boolean;
 }
 
 const ALL_FALSE: PermittedActions = {
@@ -32,6 +33,7 @@ const ALL_FALSE: PermittedActions = {
   reassignReject: false,
   documentsReceived: false,
   editAccountingNote: false,
+  correctPaidExpense: false,
 };
 
 export async function getPermittedActions(expenseId: string): Promise<PermittedActions> {

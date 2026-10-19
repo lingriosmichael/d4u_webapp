@@ -13,7 +13,7 @@ import {
   netFromGross,
   parseGermanAmount,
 } from "@/lib/parse-amount";
-import { createClient } from "@/lib/supabase/client";
+import { ReceiptLink } from "@/components/receipt-link";
 import type {
   AdvanceReconciliationDetail,
   AdvanceChildLine,
@@ -353,7 +353,7 @@ function ChildLineCard({
       </div>
 
       {!canEdit ? (
-        isReady && child.documentRef && <ViewReceiptLink documentRef={child.documentRef} />
+        isReady && child.documentRef && <ReceiptLink documentRef={child.documentRef} />
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -485,44 +485,5 @@ function ChildLineCard({
         </div>
       )}
     </div>
-  );
-}
-
-// `receipts` is a private bucket (see BUG-012, QA findings) --
-// there is no plain public URL for a document_ref, only a short-lived
-// signed one, generated on demand from the viewer's own RLS-scoped
-// session. This is the one place in the app that actually implements the
-// "clickable link to the receipt" the frontend's own CONTRIBUTING.md calls for
-// (DetailsCard's existing "Beleg" row still only shows a static label —
-// a pre-existing gap, out of scope here, but not one to reproduce in new
-// code that specifically needs this to work).
-function ViewReceiptLink({ documentRef }: { documentRef: string }) {
-  const [loading, setLoading] = useState(false);
-
-  const handleClick = async () => {
-    setLoading(true);
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase.storage
-        .from("receipts")
-        .createSignedUrl(documentRef, 60);
-      if (error || !data) throw error ?? new Error("no signed url");
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-    } catch {
-      toast.error("Beleg konnte nicht geöffnet werden");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={loading}
-      className="text-xs text-ember hover:underline"
-    >
-      Beleg ansehen
-    </button>
   );
 }

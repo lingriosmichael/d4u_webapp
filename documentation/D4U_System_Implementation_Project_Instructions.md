@@ -404,7 +404,7 @@ Answers the open points of §2H item 1. Decided by Michael on 19 Oct 2026, withi
 - **History:** every save logs `accounting_note_updated` in `approval_logs`, carrying the new text (empty when cleared). Verlauf is the note's version history. Saving the same text again logs nothing.
 - **Where it shows:** a "Buchhaltungsnotiz" card on Expense Detail, and a "Buchhaltungsnotiz" column in the Belege-Übersicht Excel export.
 
-### Part B: correcting a paid expense (designed; being built)
+### Part B: correcting a paid expense (built 19 Oct 2026)
 
 - **When:** Accounting only, status `paid` only, standard expenses only. Partner advances and Vorschuss line items are excluded: correcting one line would no longer add up to the advance's reconciled total. Before payment nothing new is needed: send back → resubmit, or undo approval, already corrects an expense and keeps Obligo right.
 - **What can change:** gross amount, net amount and VAT rate (re-entered together, same consistency rule as at payment), Rechnungsnummer and Rechnungsdatum. Not the budget line or cost center (that's Umwidmung, still blocked once paid, §9.4) and not the submitter's description.
@@ -413,10 +413,14 @@ Answers the open points of §2H item 1. Decided by Michael on 19 Oct 2026, withi
 - **Accounting correcting its own expense** is allowed and flagged in Verlauf (`self_correction_flagged`), like self-approval.
 - **Money:** a new RPC, `correct_paid_expense`, moves Ist on the same budget line by new − old in one transaction with the expense update, the correction record and the history entries. It sets the new amount rather than adding to it, so a repeated request finds nothing to change and is refused; Ist can't move twice.
 - **Record:** a new table `expense_corrections`, one row per correction with the before and after values, reason, document, who and when. Readable by exactly who can read the expense; written only by the RPC.
+- **Built as:** d4u_backend migration 0038 (`expense_corrections`, `correct_paid_expense`, log actions `expense_corrected` and `self_correction_flagged`), state-machine action `correctPaidExpense`, route `POST /api/expenses/:id/correct`. The route accepts only a document uploaded into the expense's own project folder that exists. The RPC also takes the amount the form showed and refuses if it changed meanwhile. Tested in `scripts/test-expense-correction.sh` (throwaway Postgres, never a Supabase project).
+- **Expense Detail:** "Beleg korrigieren" (form with a preview of how much Ist changes and a warning if the group goes over budget), a "Korrekturen" list with each correction's document, and a link to open the original receipt, which until now showed only its status.
 
 ---
 
-## 3. Database to implement: 12 tables
+## 3. Database to implement: 12 tables (13 since migration 0038)
+
+**Added 19 Oct 2026:** `expense_corrections` (§2I), one row per correction of a paid expense.
 
 The current ERD is a 12-table database, and the visual database diagram reflects this revised structure, including project-scoped cost-center groups, group-level budget lines, expense self-references for Vorschuss reconciliation, the accounting-detail table, and separate approval/admin audit logs. This is unaffected by the architecture revision in §0.
 
@@ -552,6 +556,8 @@ Fields: id, expense_id, actor_id, action, from_status, to_status, note, created_
 
 A note is mandatory for rejection and approval reversal.
 
+**Added since (continued):** `expense_corrected` and `self_correction_flagged` (migration 0038, §2I), written by `correct_paid_expense`.
+
 **Added since:** `self_approval_flagged`, `advance_split`, `reconciliation_submitted`, `escalated_to_ceo`, `reassignment_rejected` (migrations 0017–0028), and `accounting_note_updated` (migration 0037, §2I), whose note is the Buchhaltungsnotiz's new text. The authoritative list is the latest migration that redefines `approval_logs_action_check`.
 
 ### admin_audit_log
@@ -570,7 +576,7 @@ Key/value settings table.
 
 ---
 
-## 9. PostgreSQL financial RPC functions (five specified, six built)
+## 9. PostgreSQL financial RPC functions (five specified, seven built)
 
 The old timeline refers to four RPCs. That is now outdated. The current specification has five. **A sixth, `advance_split` (migration 0018), was added with the Vorschuss redesign (§2C, §2E).** Its contract is in `d4u_backend/CONTRIBUTING.md`. Since migration 0028, `reassign_expense` takes a proposal id instead of a free destination. **This section is entirely unaffected by the §0 architecture revision** — these were always meant to be Postgres functions, called by whichever layer sits in front of them (n8n or the custom backend).
 
@@ -609,6 +615,10 @@ A same-group, cost-center-only change is not its own variant. It goes through th
 ~~CEO-only under the current model.~~ **Widened 5 Sep 2026 to Accounting or CEO — see §2C.** Allowed only while status = awaiting_payment.
 
 It: reverses the approval; sends the record back to submitted; requires a reason; records approval_reversed.
+
+### 9.6 correct_paid_expense(expense_id, expected_amount, new figures, reason, document_ref, actor_id)
+
+Added 19 Oct 2026 (migration 0038, §2I). Accounting only (checked by the backend), `paid` standard expenses only, not Vorschuss line items. In one transaction: moves `consumed_amount` (Ist) on the expense's budget line by new − old (never below 0), updates the amount, invoice number and date, net amount and VAT rate, writes an `expense_corrections` row and logs `expense_corrected` (plus `self_correction_flagged` for Accounting's own expense). Sets values rather than adding, and refuses when the amount differs from `expected_amount`, so a repeat can't move Ist twice. Error codes D4501–D4508, plus D4101–D4103 with `confirm_payment`'s meaning.
 
 ---
 
@@ -714,7 +724,7 @@ Recharts dashboard containing: Soll; Ist; Obligo; budget utilisation; warning at
 
 Not a primary navigation section. Opened from a dashboard/list or notification.
 
-Depending on user and state, it shows only the valid actions: Approve; Reject; Reassign (Umwidmung); Undo approval; Mark as paid; Documents received; Reconcile; edit the Buchhaltungsnotiz (Accounting, any status, §2I). The note itself is shown to everyone who can open the expense.
+Depending on user and state, it shows only the valid actions: Approve; Reject; Reassign (Umwidmung); Undo approval; Mark as paid; Documents received; Reconcile; edit the Buchhaltungsnotiz (Accounting, any status, §2I); correct a paid expense (Accounting, §2I). The note itself is shown to everyone who can open the expense.
 
 Invalid actions should not simply appear disabled; the current specification says they should not be shown at all. This determination is made by the backend (role + status), and the frontend renders whatever the backend authorizes — never a client-side-only permission check.
 
@@ -935,7 +945,7 @@ AI extraction; OCR; LLM categorisation; receipt AI validation; partner login; pa
 
 ### Closed — log
 
-- **19 Oct 2026 (§2I):** expense correction and bookkeeping note designed. Buchhaltungsnotiz built (migration 0037); correcting a paid expense (Accounting, with reason and document, new RPC) being built.
+- **19 Oct 2026 (§2I):** expense correction and bookkeeping note designed and built: Buchhaltungsnotiz (migration 0037); correcting a paid expense by Accounting, with reason and document (migration 0038, `correct_paid_expense`).
 - **18 Oct 2026 (§2H), done:** the change request and the questions on the new work.
 - **18 Oct 2026 (§2H), closed as final by Michael:** custom backend instead of n8n; the RPC count; the approval model; the proposer chooses the Umwidmung destination (closes 🟡 0028). A Finance Manager submitting on any project stays as built unless D4U asks otherwise.
 - **18 Oct 2026 (§2H), in writing:** Metabase retired; no negative amounts (closes 🟡 0031); budgets may be overrun; no Vorschuss approval and e-mail-only notifications now in writing; Microsoft SSO moved to the end. Answered with no: "Umwidmung of a partner advance only before its Excel split" (0029); the follow-up is a new open row above.
