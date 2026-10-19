@@ -36,7 +36,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     getDashboardExpenses(),
     getOpenReassignmentExpenseIds(user.role),
   ]);
-  const pendingCount = needsActionFor(expenses, user.role, openReassignmentExpenseIds).length;
+  const pendingCount = needsActionFor(expenses, user, openReassignmentExpenseIds).length;
 
   return (
     <RoleProvider user={user}>
