@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { AlertTriangle, FilePen, Upload as UploadIcon } from "lucide-react";
+import { AlertTriangle, FilePen } from "lucide-react";
 import { toast } from "sonner";
 import { fmtEUR, fmtDateTime } from "@/lib/mock-data";
 import { callBackend, backendErrorMessage } from "@/lib/api";
@@ -17,6 +17,7 @@ import {
 } from "@/lib/parse-amount";
 import type { ExpenseCorrection, ExpenseDetail } from "@/lib/supabase/queries/expense-detail";
 import { ReceiptLink } from "@/components/receipt-link";
+import { ReceiptFileInput } from "@/components/receipt-file-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -252,16 +253,7 @@ export function CorrectPaidExpenseCard({ expense }: { expense: ExpenseDetail }) 
                 Beleg zur Korrektur (z. B. Schlussrechnung, Gutschrift, Kontoauszug){" "}
                 <span className="text-destructive">*</span>
               </Label>
-              <label className="mt-1.5 flex items-center gap-2 border border-dashed border-border rounded-md px-3 py-2.5 text-xs cursor-pointer hover:border-clay/40 hover:bg-secondary/40 transition-colors">
-                <UploadIcon className="size-3.5 text-ember" />
-                <span className="truncate">{file ? file.name : "Datei auswählen"}</span>
-                <input
-                  type="file"
-                  className="sr-only"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                />
-              </label>
+              <ReceiptFileInput file={file} onChange={setFile} />
             </div>
           </div>
           <DialogFooter>
