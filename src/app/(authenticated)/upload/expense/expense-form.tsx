@@ -88,8 +88,8 @@ export function StandardExpenseForm({ projects }: { projects: UploadProject[] })
         vendorName: vendor.trim() || null,
         invoiceNumber: invoiceNumber.trim() || null,
         invoiceDate,
+        // The backend sets the receipt status from documentRef itself.
         documentRef,
-        receiptStatus: documentRef ? "attached" : "missing",
       });
 
       const created = (result.data as { data: { id: string } }).data;
@@ -119,7 +119,7 @@ export function StandardExpenseForm({ projects }: { projects: UploadProject[] })
       <PageHeader
         eyebrow="Standardbeleg"
         title="Beleg einreichen"
-        description="Alle Pflichtfelder sind mit einem Sternchen gekennzeichnet. Sie können den Beleg auch ohne Anhang einreichen und diesen später nachreichen."
+        description="Alle Pflichtfelder sind mit einem Sternchen gekennzeichnet. Sie können den Beleg auch ohne Rechnung einreichen und diese später auf der Belegseite nachreichen."
       />
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -296,7 +296,8 @@ export function StandardExpenseForm({ projects }: { projects: UploadProject[] })
                   {file ? file.name : "Datei auswählen oder hierher ziehen"}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  PDF, JPG oder PNG. Falls kein Beleg vorliegt, können Sie ihn später nachreichen.
+                  PDF, JPG oder PNG. Falls die Rechnung noch nicht vorliegt, können Sie sie später
+                  auf der Belegseite nachreichen.
                 </div>
               </div>
               <input
