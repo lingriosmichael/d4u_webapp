@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import type { ExpenseStatus } from "@/lib/mock-data";
+import { OPEN_ADVANCE_STATUSES, type ExpenseStatus } from "@/lib/mock-data";
 
 // Data-access layer for the new "Vorschüsse" tab (split-advance
 // reconciliation flow, migrations 0017/0018) — read-only, RLS-scoped,
@@ -77,11 +77,7 @@ export async function getMyOpenAdvances(userId: string): Promise<OpenAdvanceSumm
     .select("*")
     .eq("expense_type", "partner_advance")
     .eq("submitted_by", userId)
-    .in("status", [
-      "submitted_unverified",
-      "reconciliation_in_progress",
-      "reconciliation_submitted",
-    ])
+    .in("status", OPEN_ADVANCE_STATUSES)
     .order("created_at", { ascending: false });
 
   return toSummaries(data ?? []);

@@ -109,13 +109,10 @@ describe("getVisualizationOverview", () => {
     expect((await getVisualizationOverview()).openAdvancesCount).toBe(1);
   });
 
-  // KNOWN BUG: visualization.ts:77 counts only submitted_unverified as an
-  // open advance. An advance that has been split (reconciliation_in_progress)
-  // or handed to Accounting (reconciliation_submitted) is still unsettled —
-  // the card's hint is "Warten auf Abrechnung" — and getMyOpenAdvances in
-  // advances.ts treats all three as open. Those advances drop out of the
-  // "Offene Vorschüsse" count.
-  it.fails("counts a split advance and one awaiting Accounting as open too", async () => {
+  // An advance stays open until Accounting reconciled it, split or not
+  // (decided 19 Oct 2026; OPEN_ADVANCE_STATUSES, shared with the
+  // submitter's own list on the Vorschüsse tab).
+  it("counts a split advance and one awaiting Accounting as open too", async () => {
     useTables({
       projects: [],
       budget_lines: [],

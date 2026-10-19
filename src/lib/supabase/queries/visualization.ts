@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import {
+  OPEN_ADVANCE_STATUSES,
   OPEN_EXPENSE_STATUSES,
   ALL_EXPENSE_STATUSES,
   type ExpenseStatus,
@@ -74,7 +75,7 @@ export async function getVisualizationOverview(): Promise<VisualizationOverview>
 
   const rows = expenses ?? [];
   const pendingCount = rows.filter((e) => PENDING_STATUSES.includes(e.status)).length;
-  const openAdvancesCount = rows.filter((e) => e.status === "submitted_unverified").length;
+  const openAdvancesCount = rows.filter((e) => OPEN_ADVANCE_STATUSES.includes(e.status)).length;
 
   return {
     projects: (projects ?? []).map((p) => ({

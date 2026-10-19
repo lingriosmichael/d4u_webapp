@@ -60,6 +60,16 @@ export const ALL_EXPENSE_STATUSES: ExpenseStatus[] = [
   "reconciled",
 ];
 
+// A partner advance counts as open until Accounting has reconciled it:
+// waiting for documents, split into line items, or handed to Accounting
+// (decided 19 Oct 2026). One list for the "Offene Vorschüsse" card in
+// Auswertung and the submitter's own list on the Vorschüsse tab.
+export const OPEN_ADVANCE_STATUSES: ExpenseStatus[] = [
+  "submitted_unverified",
+  "reconciliation_in_progress",
+  "reconciliation_submitted",
+];
+
 export type ExpenseType = "standard" | "partner_advance";
 
 // "not_required" per the live expenses_receipt_status_check constraint —
