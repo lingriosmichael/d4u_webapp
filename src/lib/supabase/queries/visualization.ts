@@ -6,6 +6,7 @@ import {
   ALL_EXPENSE_STATUSES,
   type ExpenseStatus,
   type ExpenseType,
+  type ReceiptStatus,
 } from "@/lib/mock-data";
 import { statusesForResponsibleParty, type ResponsibleParty } from "@/lib/approval-stage-role";
 import type {
@@ -312,7 +313,7 @@ export async function getExpenseOverview(
   let query = supabase
     .from("expenses")
     .select(
-      "id, project_id, cost_center_id, status, submitted_by, amount, description, vendor_name, invoice_number, invoice_date, paid_at, document_ref, accounting_note, expense_type, created_at, reconciles_advance_id, approval_logs(to_status, created_at), expense_accounting_details(booking_key, vat_rate, net_amount, ksk_liable, supplier_vat_id, supplier_address, supplier_bank_name)",
+      "id, project_id, cost_center_id, status, submitted_by, amount, description, vendor_name, invoice_number, invoice_date, paid_at, document_ref, receipt_status, accounting_note, expense_type, created_at, reconciles_advance_id, approval_logs(to_status, created_at), expense_accounting_details(booking_key, vat_rate, net_amount, ksk_liable, supplier_vat_id, supplier_address, supplier_bank_name)",
     )
     .in("status", statuses)
     .order("created_at", { ascending: false });
@@ -398,6 +399,7 @@ export async function getExpenseOverview(
       invoiceDate: row.invoice_date ?? null,
       paidAt: row.paid_at ?? null,
       documentRef: row.document_ref ?? null,
+      receiptStatus: row.receipt_status as ReceiptStatus,
       accountingNote: row.accounting_note ?? null,
       accounting: accountingSummaryOf(row.expense_accounting_details),
     };

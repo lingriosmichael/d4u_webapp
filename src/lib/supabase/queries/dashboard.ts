@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import type { ExpenseStatus, Role } from "@/lib/mock-data";
+import type { ExpenseStatus, ReceiptStatus, Role } from "@/lib/mock-data";
 import { isApprovalStageReviewer } from "@/lib/approval-stage-role";
 import { getOpenReassignmentProposals } from "./reassignment-proposals";
 
@@ -36,6 +36,9 @@ export interface DashboardExpense {
   amount: number;
   description: string;
   status: ExpenseStatus;
+  /** "missing" shows the "Beleg fehlt" badge (D4U, 19 Oct 2026: a receipt
+   * may be added after submission). */
+  receiptStatus: ReceiptStatus;
   createdAt: string;
   submittedBy: string;
   submittedByName: string | null;
@@ -89,7 +92,9 @@ export async function getDashboardExpenses(): Promise<DashboardExpense[]> {
 
   const { data, error } = await supabase
     .from("expenses")
-    .select("id, project_id, amount, description, status, created_at, submitted_by, partner_id")
+    .select(
+      "id, project_id, amount, description, status, receipt_status, created_at, submitted_by, partner_id",
+    )
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -124,6 +129,7 @@ export async function getDashboardExpenses(): Promise<DashboardExpense[]> {
     amount: e.amount,
     description: e.description,
     status: e.status as ExpenseStatus,
+    receiptStatus: e.receipt_status as ReceiptStatus,
     createdAt: e.created_at,
     submittedBy: e.submitted_by,
     submittedByName: userNameById.get(e.submitted_by) ?? null,

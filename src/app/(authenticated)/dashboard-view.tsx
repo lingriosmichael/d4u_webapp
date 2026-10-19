@@ -64,7 +64,12 @@ export async function DashboardView() {
               >
                 <div>
                   <div className="flex justify-between items-start mb-4">
-                    <StatusPill tone={statusTone(e.status)}>{statusLabel(e.status)}</StatusPill>
+                    <div className="flex flex-wrap gap-1.5">
+                      <StatusPill tone={statusTone(e.status)}>{statusLabel(e.status)}</StatusPill>
+                      {e.receiptStatus === "missing" && (
+                        <StatusPill tone="danger">Beleg fehlt</StatusPill>
+                      )}
+                    </div>
                     <span className="text-[10px] font-mono text-muted-foreground">{e.id}</span>
                   </div>
                   <h3 className="font-medium text-foreground leading-tight mb-1 line-clamp-1">

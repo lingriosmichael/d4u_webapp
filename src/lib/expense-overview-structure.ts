@@ -1,4 +1,4 @@
-import type { ExpenseStatus, ExpenseType } from "@/lib/mock-data";
+import type { ExpenseStatus, ExpenseType, ReceiptStatus } from "@/lib/mock-data";
 import { RESPONSIBLE_PARTY_LABELS, responsiblePartyForStatus } from "@/lib/approval-stage-role";
 
 // Shapes the Belege-Übersicht's rows for display and export. Pure (no
@@ -45,6 +45,8 @@ export interface ExpenseOverviewRow {
   paidAt: string | null;
   /** Storage path of the receipt (expenses.document_ref). */
   documentRef: string | null;
+  /** "missing" shows the "Beleg fehlt" badge. */
+  receiptStatus: ReceiptStatus;
   /** Buchhaltungsnotiz (d4u_backend migration 0037). */
   accountingNote: string | null;
   /** What Accounting entered when marking it paid; null before that, and

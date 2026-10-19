@@ -352,6 +352,11 @@ function OverviewTableRow({
         <Link href={href} className="block">
           {row.description}
           {row.vendorName && <span className="text-muted-foreground"> · {row.vendorName}</span>}
+          {row.receiptStatus === "missing" && (
+            <span className="ml-2 align-middle">
+              <StatusPill tone="danger">Beleg fehlt</StatusPill>
+            </span>
+          )}
           {variant === "advance" && (
             <span className="block text-xs text-muted-foreground mt-0.5">
               Partner-Vorschuss · {lineCount === 1 ? "1 Position" : `${lineCount} Positionen`}
