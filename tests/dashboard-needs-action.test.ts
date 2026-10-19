@@ -75,6 +75,20 @@ describe("needsActionFor: reviewer rules unchanged", () => {
     }
   });
 
+  // The backend refuses a CEO-stage approval by the submitter (decided
+  // 19 Oct 2026), e.g. a Project Manager made CEO while their over-limit
+  // expense waited. It stays a task for every other CEO.
+  it("a CEO's own expense at ceo_approval is not their task, but another CEO's", () => {
+    const ownExpense = expense({ status: "ceo_approval", submittedBy: "me" });
+    expect(idsFor([ownExpense], { id: "me", role: "ceo" })).toEqual([]);
+    expect(idsFor([ownExpense], { id: "other-ceo", role: "ceo" })).toEqual([ownExpense.id]);
+  });
+
+  it("Accounting's own expense at accounting_approval stays their task (accepted, flagged)", () => {
+    const ownExpense = expense({ status: "accounting_approval", submittedBy: "me" });
+    expect(idsFor([ownExpense], { id: "me", role: "accounting" })).toEqual([ownExpense.id]);
+  });
+
   it.each(["awaiting_payment", "paid"] as ExpenseStatus[])(
     "%s is nobody's task, not even the submitter's",
     (status) => {
