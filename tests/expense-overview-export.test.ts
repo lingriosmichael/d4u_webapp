@@ -35,6 +35,7 @@ function row(overrides: Partial<ExpenseOverviewRow>): ExpenseOverviewRow {
     invoiceDate: null,
     paidAt: null,
     documentRef: null,
+    accountingNote: null,
     accounting: null,
     ...overrides,
   };
@@ -93,6 +94,7 @@ describe("buildExpenseOverviewWorkbook", () => {
       "Adresse Lieferant",
       "Bank Lieferant",
       "Dateiname",
+      "Buchhaltungsnotiz",
       "Gehört zu Vorschuss",
       "Beleg-ID",
       "Vorschuss-ID",
@@ -188,6 +190,7 @@ describe("buildExpenseOverviewWorkbook", () => {
               // 22:30 UTC on 12 Oct is 13 Oct in Berlin.
               paidAt: "2026-10-12T22:30:00Z",
               documentRef: "BIB-24/5d1c2b6e-0000-4000-8000-000000000000/Rechnung_42.pdf",
+              accountingNote: "Schlussrechnung RE-2026-114, Zahlung am 12.10. (Ref. 88341).",
               accounting: {
                 bookingKey: "4930",
                 vatRate: 19,
@@ -218,6 +221,9 @@ describe("buildExpenseOverviewWorkbook", () => {
     expect(cells["Adresse Lieferant"]).toBe("Musterstraße 1, 10115 Berlin");
     expect(cells["Bank Lieferant"]).toBe("Berliner Sparkasse");
     expect(cells["Dateiname"]).toBe("Rechnung_42.pdf");
+    expect(cells["Buchhaltungsnotiz"]).toBe(
+      "Schlussrechnung RE-2026-114, Zahlung am 12.10. (Ref. 88341).",
+    );
 
     const headers = (sheet.getRow(1).values as unknown[]).slice(1);
     const column = (header: string) => headers.indexOf(header) + 1;

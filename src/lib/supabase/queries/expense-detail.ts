@@ -43,6 +43,9 @@ export interface ExpenseDetail {
   /** "YYYY-MM-DD"; null for partner advances, Vorschuss line items and
    * expenses from before d4u_backend migration 0036. */
   invoiceDate: string | null;
+  /** Buchhaltungsnotiz (d4u_backend migration 0037): written by Accounting,
+   * readable by everyone who can read the expense. */
+  accountingNote: string | null;
   receiptStatus: ReceiptStatus;
   documentRef: string | null;
   createdAt: string;
@@ -133,6 +136,7 @@ export async function getExpenseDetail(id: string): Promise<ExpenseDetail | null
     vendor: expense.vendor_name,
     invoiceNumber: expense.invoice_number,
     invoiceDate: expense.invoice_date ?? null,
+    accountingNote: expense.accounting_note ?? null,
     receiptStatus: expense.receipt_status,
     documentRef: expense.document_ref,
     createdAt: expense.created_at,

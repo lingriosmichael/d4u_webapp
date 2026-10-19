@@ -33,7 +33,8 @@ import type {
 // Netto, MwSt-Satz, Buchungsschlüssel, KSK and the supplier details exist
 // only once Accounting has marked the Beleg paid. They come after "Eingereicht
 // am" so the earlier columns, and the SUMIFS on the Info sheet, keep their
-// letters.
+// letters. "Buchhaltungsnotiz" (19 Oct 2026, d4u_backend migration 0037)
+// follows "Dateiname" for the same reason.
 
 const DISPLAY_TIME_ZONE = "Europe/Berlin";
 const EURO_FORMAT = '#,##0.00 "€"';
@@ -65,6 +66,7 @@ const COLUMNS: Array<{ header: string; key: string; width: number }> = [
   { header: "Adresse Lieferant", key: "supplierAddress", width: 34 },
   { header: "Bank Lieferant", key: "supplierBankName", width: 24 },
   { header: "Dateiname", key: "fileName", width: 32 },
+  { header: "Buchhaltungsnotiz", key: "accountingNote", width: 48 },
   { header: "Gehört zu Vorschuss", key: "parentAdvance", width: 34 },
   { header: "Beleg-ID", key: "id", width: 38 },
   { header: "Vorschuss-ID", key: "parentAdvanceId", width: 38 },
@@ -166,6 +168,7 @@ export async function buildExpenseOverviewWorkbook(input: {
       supplierAddress: row.accounting?.supplierAddress ?? null,
       supplierBankName: row.accounting?.supplierBankName ?? null,
       fileName: row.documentRef ? receiptFileName(row.documentRef) : null,
+      accountingNote: row.accountingNote,
       parentAdvance: row.reconcilesAdvanceId ? row.parentAdvanceDescription : null,
       id: row.id,
       parentAdvanceId: row.reconcilesAdvanceId,

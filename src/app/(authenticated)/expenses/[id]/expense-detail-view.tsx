@@ -45,6 +45,7 @@ import {
   UmwidmungPendingNotice,
   UmwidmungProposeCard,
 } from "./umwidmung-cards";
+import { AccountingNoteCard } from "./accounting-note-card";
 
 type Mode = "review" | "edit" | "reconcile" | "readonly";
 
@@ -157,6 +158,14 @@ export function ExpenseDetailView({
             </>
           ) : (
             <DetailsCard expense={expense} />
+          )}
+
+          {(expense.accountingNote || permittedActions.editAccountingNote) && (
+            <AccountingNoteCard
+              expenseId={expense.id}
+              note={expense.accountingNote}
+              canEdit={permittedActions.editAccountingNote}
+            />
           )}
 
           {mode === "review" && (
@@ -307,12 +316,12 @@ function Timeline({ expense }: { expense: ExpenseDetail }) {
                 isLast ? "border-clay" : "border-border",
               )}
             />
-            <div className="text-xs font-semibold text-foreground">{actionLabel(log.action)}</div>
+            <div className="text-xs font-semibold text-foreground">{logLabel(log)}</div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
               {log.actorName ?? "System"} · {fmtDateTime(log.at)}
             </div>
             {log.note && (
-              <p className="text-xs text-muted-foreground mt-1.5 italic leading-relaxed">
+              <p className="text-xs text-muted-foreground mt-1.5 italic leading-relaxed whitespace-pre-line">
                 &ldquo;{log.note}&rdquo;
               </p>
             )}
@@ -323,8 +332,14 @@ function Timeline({ expense }: { expense: ExpenseDetail }) {
   );
 }
 
+/** A cleared Buchhaltungsnotiz logs accounting_note_updated with no note. */
+function logLabel(log: ExpenseDetail["logs"][number]): string {
+  if (log.action === "accounting_note_updated" && !log.note) return "Buchhaltungsnotiz entfernt";
+  return actionLabel(log.action);
+}
+
 // Labels for the live approval_logs_action_check values (current list: the
-// latest d4u_backend migration that redefines it, 0028 as of this writing) —
+// latest d4u_backend migration that redefines it, 0037 as of this writing) —
 // not mock-data.ts's ApprovalAction fixture, whose vocabulary ("approved",
 // "rejected", "reconciled", "undo_approval", "reassigned") the real
 // constraint rejects. Unknown values fall through to the raw action name.
@@ -370,6 +385,8 @@ function actionLabel(a: string): string {
       return "Zur Abrechnung eingereicht";
     case "budget_incremented":
       return "Budget reserviert";
+    case "accounting_note_updated":
+      return "Buchhaltungsnotiz geändert";
     default:
       return a;
   }
