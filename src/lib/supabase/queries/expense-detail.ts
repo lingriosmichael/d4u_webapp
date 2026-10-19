@@ -26,8 +26,9 @@ export interface ReconciledLine {
   costCenterCode: string | null;
   costCenterName: string | null;
   description: string;
-  netAmount: number;
-  vatRate: number;
+  /** null when the viewer may not read the line's accounting details. */
+  netAmount: number | null;
+  vatRate: number | null;
   grossAmount: number;
 }
 
@@ -335,8 +336,8 @@ async function getReconciledLines(advanceExpenseId: string): Promise<ReconciledL
       costCenterCode: cc?.code ?? null,
       costCenterName: cc?.name ?? null,
       description: c.description,
-      netAmount: detail ? Number(detail.net_amount) : 0,
-      vatRate: detail ? Number(detail.vat_rate) : 0,
+      netAmount: detail ? numberOrNull(detail.net_amount) : null,
+      vatRate: detail ? numberOrNull(detail.vat_rate) : null,
       grossAmount: Number(c.amount),
     };
   });

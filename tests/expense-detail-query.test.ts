@@ -355,8 +355,9 @@ describe("getExpenseDetail", () => {
           costCenterCode: null,
           costCenterName: null,
           description: "Fahrtkosten",
-          netAmount: 0,
-          vatRate: 0,
+          // No readable accounting details: unknown, shown as "—".
+          netAmount: null,
+          vatRate: null,
           grossAmount: 560.4,
         },
       ]);
@@ -369,7 +370,7 @@ describe("getExpenseDetail", () => {
     // own reconciled advance sees "0,00 €" and "0%" on every line — a
     // confident wrong figure. paymentDetails in the same file uses null for
     // exactly this case; the spec asks for "—" rather than a misleading zero.
-    it.fails("shows unreadable booked figures as unknown, not as 0", async () => {
+    it("shows unreadable booked figures as unknown, not as 0", async () => {
       useTables({ ...advanceTables(), expense_accounting_details: [] });
       const [line] = (await getExpenseDetail("adv"))?.reconciledLines ?? [];
       expect(line.netAmount).toBeNull();

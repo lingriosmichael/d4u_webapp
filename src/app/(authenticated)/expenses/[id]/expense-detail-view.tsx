@@ -1028,8 +1028,12 @@ function ReconciliationTable({ lines }: { lines: ReconciledLine[] }) {
           <tr key={l.id} className="border-t border-line">
             <td className="py-2">{l.costCenterCode ?? "—"}</td>
             <td className="py-2">{l.description}</td>
-            <td className="py-2 text-right font-mono">{fmtEUR(l.netAmount)}</td>
-            <td className="py-2 text-right font-mono">{l.vatRate}%</td>
+            <td className="py-2 text-right font-mono">
+              {l.netAmount === null ? "—" : fmtEUR(l.netAmount)}
+            </td>
+            <td className="py-2 text-right font-mono">
+              {l.vatRate === null ? "—" : `${l.vatRate}%`}
+            </td>
             <td className="py-2 text-right font-mono">{fmtEUR(l.grossAmount)}</td>
           </tr>
         ))}
