@@ -133,19 +133,22 @@ export async function getDashboardExpenses(): Promise<DashboardExpense[]> {
 }
 
 /** Mirrors d4u_backend's real authorization (see approval-stage-role.ts):
- * the role whose approval stage an expense is currently at, accounting
- * reviewing an unverified partner advance, or accounting deciding an open
- * Umwidmung proposal (ids from getOpenReassignmentProposals — the backend
- * decides which proposals are open). */
+ * the submitter of a sent-back expense (resubmit is theirs alone, whatever
+ * their role — state-machine.ts's handleResubmit), the role whose approval
+ * stage an expense is currently at, accounting reviewing an unverified
+ * partner advance, or accounting deciding an open Umwidmung proposal (ids
+ * from getOpenReassignmentProposals — the backend decides which proposals
+ * are open). */
 export function needsActionFor(
   expenses: DashboardExpense[],
-  currentUserRole: Role,
+  currentUser: { id: string; role: Role },
   openReassignmentExpenseIds: ReadonlySet<string> = new Set(),
 ): DashboardExpense[] {
   return expenses.filter((e) => {
-    if (currentUserRole === "accounting" && e.status === "submitted_unverified") return true;
-    if (currentUserRole === "accounting" && openReassignmentExpenseIds.has(e.id)) return true;
-    return isApprovalStageReviewer(e.status, currentUserRole);
+    if (e.status === "needs_changes" && e.submittedBy === currentUser.id) return true;
+    if (currentUser.role === "accounting" && e.status === "submitted_unverified") return true;
+    if (currentUser.role === "accounting" && openReassignmentExpenseIds.has(e.id)) return true;
+    return isApprovalStageReviewer(e.status, currentUser.role);
   });
 }
 

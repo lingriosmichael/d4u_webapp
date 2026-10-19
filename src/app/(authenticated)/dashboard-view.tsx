@@ -32,7 +32,7 @@ export async function DashboardView() {
   const budgetStatusByProject = new Map(budgetStatuses.map((b) => [b.projectId, b]));
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
-  const pending = needsActionFor(expenses, user.role, openReassignmentExpenseIds);
+  const pending = needsActionFor(expenses, user, openReassignmentExpenseIds);
   const visibleProjects = projectsVisibleTo(user, projects);
 
   return (
